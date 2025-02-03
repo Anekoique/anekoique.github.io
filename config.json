@@ -1,0 +1,79 @@
+{
+    "baseURL": "https://anekoique.github.io/",
+    "languageCode": "en-us",
+    "title": "Anekoique",
+    "theme": "hugo-theme-m10c",
+    "params": {
+        "author": "Anekoique",
+        "description": "A simple CS student",
+        "avatar": "/images/avatar.webp",
+        "menu_item_separator": " - ",
+        "favicon": "/images/favicon.ico",
+        "social": [
+            {
+                "icon": "github",
+                "name": "GitHub",
+                "url": "https://github.com/Anekoique"
+            },
+            {
+                "icon": "mail",
+                "name": "Email",
+                "url": "mailto:ctolu01@gmail.com"
+            }
+        ]
+    },
+    "menu": {
+        "main": [
+            {
+                "identifier": "home",
+                "name": "Home",
+                "url": "/",
+                "weight": 1
+            },
+            {
+                "identifier": "tags",
+                "name": "Tags",
+                "url": "/tags/",
+                "weight": 2
+            },
+            {
+                "identifier": "about",
+                "name": "About",
+                "url": "/about/",
+                "weight": 3
+            },
+            {
+                "identifier": "links",
+                "name": "Links",
+                "url": "/links/",
+                "weight": 4
+            }
+        ]
+    },
+    "markup": {
+        "highlight": {
+            "codeFences": true,
+            "guessSyntax": false,
+            "hl_Lines": "",
+            "lineNoStart": 1,
+            "lineNos": false,
+            "lineNumbersInTable": true,
+            "noClasses": true,
+            "style": "monokai",
+            "tabWidth": 4
+        },
+        "goldmark": {
+            "extensions": {
+                "typographer": false
+            }
+        }
+    },
+    "minify": {
+        "tdewolff": {
+            "html": {
+                "keepWhitespace": true  
+            }
+        }
+    },
+    "buildFuture": true
+}
