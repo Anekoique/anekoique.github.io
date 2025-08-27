@@ -1,0 +1,224 @@
+baseURL: https://anekoique.github.io/ # 绑定的域名
+languageCode: en # en-us
+title: Anekoique's Blog
+theme: PaperMod  # 主题名字，和themes文件夹下的一致
+
+enableInlineShortcodes: true
+enableEmoji: true # 允许使用 Emoji 表情，建议 true
+enableRobotsTXT: true # 允许爬虫抓取到搜索引擎，建议 true
+hasCJKLanguage: true # 自动检测是否包含 中文日文韩文 如果文章中使用了很多中文引号的话可以开启
+
+buildDrafts: false
+buildFuture: false
+buildExpired: false
+
+googleAnalytics:  # 谷歌统计
+# Copyright: Sulv
+
+pagination.pagersize: 15    # 首页每页显示的文章数
+summaryLength: 140 # 文章概览的自字数，默认70
+
+minify:
+  disableXML: true
+  # minifyOutput: true
+
+permalinks: # 访问博客时网址的显示形式
+  post: "/:title/"
+  # post: "/:year/:month/:day/:title/"
+
+defaultContentLanguage: en # Default language
+defaultContentLanguageInSubdir: false
+
+menu:
+  main:
+    - identifier: search
+      name: Search
+      url: search/
+      weight: 1
+    - identifier: home
+      name: Home
+      url: /
+      weight: 2
+    - identifier: posts
+      name: Posts
+      url: posts/
+      weight: 3
+    - identifier: tags
+      name: Tags
+      url: tags/
+      weight: 15
+    - identifier: archives
+      name: Archives
+      url: archives/
+      weight: 20
+    - identifier: about
+      name: About
+      url: about/
+      weight: 50
+
+outputs:
+  home:
+    - HTML
+    - RSS
+    - JSON
+
+# 这里的参数会被代码以 .Site.Params 的形式读取
+params:
+  env: production # to enable google analytics, opengraph, twitter-cards and schema.
+  description: "Anekoique's personal blog about computer science, distributed systems, compilers, OS and LLM"
+  author: Anekoique
+  # author: ["Me", "You"] # multiple authors
+
+  defaultTheme: auto  # defaultTheme: light or  dark
+  disableThemeToggle: false
+  DateFormat: "2006-01-02"
+  ShowShareButtons: false
+  ShowReadingTime: true
+  # disableSpecialistPost: true
+  displayFullLangName: true
+  ShowPostNavLinks: true
+  ShowBreadCrumbs: true
+  ShowCodeCopyButtons: true
+  hideFooter: false # 隐藏页脚
+  ShowWordCounts: true
+  VisitCount: true
+  ShowLastMod: true #显示文章更新时间
+
+  ShowToc: true # 显示目录
+  TocOpen: true # 自动展开目录
+
+  extendCodeBackground: false # 代码块是否自动横向展开
+
+  comments: true
+
+  profileMode:
+    enabled: true
+    title: Anekoique
+    subtitle: "I am a junior student majoring in Computer Science and Technology, currently learning on  distributed systems and compilers, and interested in OS and LLM inference."
+    imageUrl: "img/head.jpg"
+    imageTitle:
+    imageWidth: 150
+    imageHeight: 150
+    buttons:
+      - name: Posts
+        url: posts
+      - name: Archives
+        url: archives
+
+  socialIcons:
+    - name: github
+      url: "https://github.com/Anekoique"
+    - name: email
+      url: "ctolu01@gmail.com"
+    - name: bilibili
+      url: "https://space.bilibili.com/234461224"
+    - name: RSS
+      url: "index.xml"
+
+  label:
+    text: "Anekoique's Blog"
+    iconHeight: 35
+
+  analytics:
+    google:
+      SiteVerificationTag: ""
+
+  assets:
+    favicon: "img/head.jpg"
+    favicon16x16: "img/head.jpg"
+    favicon32x32: "img/head.jpg"
+    apple_touch_icon: "img/head.jpg"
+    safari_pinned_tab: "img/head.jpg"
+    disableFingerprinting: true # 禁用指纹
+
+  cover:
+    hidden: false # hide everywhere but not in structured data
+    hiddenInList: false # hide on list pages and home
+    hiddenInSingle: false # hide on single page
+
+  fuseOpts: # 搜索配置
+    isCaseSensitive: false
+    shouldSort: true
+    location: 0
+    distance: 1000
+    threshold: 0.4
+    minMatchCharLength: 0
+    keys: [ "title", "permalink", "summary" ]
+
+  StartYear: 2024 # 底部开始年份
+  # FilingNo: 填写自己的备案号 # 底部备案号
+  # PublicSecurityIconLink: 填自己的公安图标链接 # 填自己的公安图标链接,可用绝对路径，相对路径如 img/beian.png
+  # PublicNetworkSecurity: 填自己的公网安备 # 底部公网安备号
+
+  Reward: true #打赏是否开启
+  # 打赏微信图片地址，
+  # 可用绝对和相对地址，相对地址的图片需放在static/img下，
+  # 填写格式为img/wechat_pay.png
+  WechatPay: img/wechat_pay.png
+  Alipay: img/alipay.png #打赏支付宝图片地址
+
+  # Giscus comment system (powered by GitHub Discussions)
+  giscus:
+    repo:  # Your GitHub repository (e.g., "Anekoique/blog")
+    repoId:  # Your repository ID (get from giscus.app)
+    category: "Announcements" # GitHub Discussions category
+    categoryId:  # Category ID (get from giscus.app)
+    mapping: "pathname" # How to map discussions (pathname, url, title, etc.)
+    strict: false
+    reactionsEnabled: true # Enable reactions
+    emitMetadata: false
+    inputPosition: "top" # Comment input position (top or bottom)
+    theme: "preferred_color_scheme" # Theme (light, dark, preferred_color_scheme)
+    lang: "en" # Language
+    loading: "lazy" # Loading strategy
+
+taxonomies:
+  category: categories
+  tag: tags
+  series: series
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true # HUGO 默认转义 Markdown 文件中的 HTML 代码，如需开启的话
+  highlight:
+    # anchorLineNos: true
+    codeFences: true
+    guessSyntax: true
+    # lineNos: true
+    noClasses: true
+    tabWidth: 4
+    style: monokai
+    # codeFences：代码围栏功能，这个功能一般都要设为 true 的，不然很难看，就是干巴巴的-代码文字，没有颜色。
+    # guessSyntax：猜测语法，这个功能建议设置为 true, 如果你没有设置要显示的语言则会自动匹配。
+    # hl_Lines：高亮的行号，一般这个不设置，因为每个代码块我们可能希望让高亮的地方不一样。
+    # lineNoStart：行号从编号几开始，一般从 1 开始。
+    # lineNos：是否显示行号，我比较喜欢显示，所以我设置的为 true.
+    # lineNumbersInTable：使用表来格式化行号和代码,而不是 标签。这个属性一般设置为 true.
+    # noClasses：使用 class 标签，而不是内嵌的内联样式
+
+# privacy:
+#   vimeo:
+#     disabled: false
+#     simple: true
+# 
+#   twitter:
+#     disabled: false
+#     enableDNT: true
+#     simple: true
+# 
+#   instagram:
+#     disabled: false
+#     simple: true
+# 
+#   youtube:
+#     disabled: false
+#     privacyEnhanced: true
+# 
+# services:
+#   instagram:
+#     disableInlineCSS: true
+#   twitter:
+#     disableInlineCSS: true
+        
+
