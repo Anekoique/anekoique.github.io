@@ -232,19 +232,20 @@
 </div>
 
 <script>
+let updateThemeTimeout;
+
 
 function updateGiscusTheme() {
     const giscusFrame = document.querySelector('iframe.giscus-frame');
-    if (!giscusFrame) return;
+    if (!giscusFrame || !giscusFrame.contentWindow) return;
     
     
-    let theme;
     const storedTheme = localStorage.getItem("pref-theme");
     const isDark = document.body.classList.contains('dark');
     
+    let theme;
     if (storedTheme === 'auto' || !storedTheme) {
-        
-        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        theme = isDark ? 'dark' : 'light';
     } else if (isDark || storedTheme === 'dark') {
         theme = 'dark';
     } else {
@@ -252,36 +253,72 @@ function updateGiscusTheme() {
     }
     
     
-    giscusFrame.contentWindow.postMessage({
-        giscus: {
-            setConfig: {
-                theme: theme
+    try {
+        giscusFrame.contentWindow.postMessage({
+            giscus: {
+                setConfig: {
+                    theme: theme
+                }
             }
+        }, 'https://giscus.app');
+    } catch (error) {
+        console.debug('Giscus theme update failed:', error);
+    }
+}
+
+
+function debouncedUpdateTheme() {
+    clearTimeout(updateThemeTimeout);
+    updateThemeTimeout = setTimeout(updateGiscusTheme, 50);
+}
+
+
+function waitForGiscusAndUpdateTheme() {
+    const checkGiscus = () => {
+        const giscusFrame = document.querySelector('iframe.giscus-frame');
+        if (giscusFrame && giscusFrame.contentWindow) {
+            updateGiscusTheme();
+        } else if (document.querySelector('.giscus-comments script')) {
+            
+            setTimeout(checkGiscus, 100);
         }
-    }, 'https://giscus.app');
+    };
+    checkGiscus();
 }
 
 
-document.addEventListener('DOMContentLoaded', () => {
-    
-    setTimeout(updateGiscusTheme, 1000);
-});
+document.addEventListener('DOMContentLoaded', waitForGiscusAndUpdateTheme);
 
 
-const themeToggle = document.getElementById("theme-toggle");
-if (themeToggle) {
-    themeToggle.addEventListener("click", () => {
+document.addEventListener('click', (e) => {
+    if (e.target.closest('#theme-toggle')) {
         
-        setTimeout(updateGiscusTheme, 100);
-    });
-}
+        requestAnimationFrame(() => {
+            requestAnimationFrame(updateGiscusTheme);
+        });
+    }
+});
 
 
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     const storedTheme = localStorage.getItem("pref-theme");
     if (storedTheme === 'auto' || !storedTheme) {
-        setTimeout(updateGiscusTheme, 100);
+        debouncedUpdateTheme();
     }
+});
+
+
+const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            debouncedUpdateTheme();
+        }
+    });
+});
+
+observer.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['class']
 });
 </script>
 

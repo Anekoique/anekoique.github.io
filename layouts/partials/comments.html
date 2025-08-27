@@ -20,56 +20,93 @@
 </div>
 
 <script>
+let updateThemeTimeout;
+
 // Function to update giscus theme
 function updateGiscusTheme() {
     const giscusFrame = document.querySelector('iframe.giscus-frame');
-    if (!giscusFrame) return;
+    if (!giscusFrame || !giscusFrame.contentWindow) return;
     
-    // Determine current theme based on body class or localStorage
-    let theme;
+    // Determine current theme
     const storedTheme = localStorage.getItem("pref-theme");
     const isDark = document.body.classList.contains('dark');
     
+    let theme;
     if (storedTheme === 'auto' || !storedTheme) {
-        // Use system preference
-        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        theme = isDark ? 'dark' : 'light';
     } else if (isDark || storedTheme === 'dark') {
         theme = 'dark';
     } else {
         theme = 'light';
     }
     
-    // Send message to giscus iframe to change theme
-    giscusFrame.contentWindow.postMessage({
-        giscus: {
-            setConfig: {
-                theme: theme
+    // Send message to giscus iframe
+    try {
+        giscusFrame.contentWindow.postMessage({
+            giscus: {
+                setConfig: {
+                    theme: theme
+                }
             }
+        }, 'https://giscus.app');
+    } catch (error) {
+        console.debug('Giscus theme update failed:', error);
+    }
+}
+
+// Debounced theme update function
+function debouncedUpdateTheme() {
+    clearTimeout(updateThemeTimeout);
+    updateThemeTimeout = setTimeout(updateGiscusTheme, 50);
+}
+
+// Wait for giscus to load, then update theme
+function waitForGiscusAndUpdateTheme() {
+    const checkGiscus = () => {
+        const giscusFrame = document.querySelector('iframe.giscus-frame');
+        if (giscusFrame && giscusFrame.contentWindow) {
+            updateGiscusTheme();
+        } else if (document.querySelector('.giscus-comments script')) {
+            // Giscus script exists but iframe not ready yet
+            setTimeout(checkGiscus, 100);
         }
-    }, 'https://giscus.app');
+    };
+    checkGiscus();
 }
 
 // Update theme when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    // Wait a bit for giscus to load
-    setTimeout(updateGiscusTheme, 1000);
-});
+document.addEventListener('DOMContentLoaded', waitForGiscusAndUpdateTheme);
 
-// Listen for theme toggle events
-const themeToggle = document.getElementById("theme-toggle");
-if (themeToggle) {
-    themeToggle.addEventListener("click", () => {
-        // Wait a bit for theme change to complete
-        setTimeout(updateGiscusTheme, 100);
-    });
-}
+// Listen for theme toggle events with immediate response
+document.addEventListener('click', (e) => {
+    if (e.target.closest('#theme-toggle')) {
+        // Use requestAnimationFrame for smooth transition
+        requestAnimationFrame(() => {
+            requestAnimationFrame(updateGiscusTheme);
+        });
+    }
+});
 
 // Listen for system theme changes
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     const storedTheme = localStorage.getItem("pref-theme");
     if (storedTheme === 'auto' || !storedTheme) {
-        setTimeout(updateGiscusTheme, 100);
+        debouncedUpdateTheme();
     }
+});
+
+// Listen for body class changes (theme changes)
+const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            debouncedUpdateTheme();
+        }
+    });
+});
+
+observer.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['class']
 });
 </script>
 {{ end }}
