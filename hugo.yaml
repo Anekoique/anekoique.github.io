@@ -111,7 +111,7 @@ params:
     - name: email
       url: "ctolu01@gmail.com"
     - name: bilibili
-      url: "https://space.bilibili.com/234461224"
+      url: "https://space.bilibili.com/492557152"
     - name: RSS
       url: "index.xml"
 
@@ -159,13 +159,13 @@ params:
 
   # Giscus comment system (powered by GitHub Discussions)
   giscus:
-    repo:  # Your GitHub repository (e.g., "Anekoique/blog")
-    repoId:  # Your repository ID (get from giscus.app)
+    repo: "Anekoique/anekoique.github.io" # Your GitHub repository
+    repoId: "R_kgDOPlBaDg" # Your repository ID
     category: "Announcements" # GitHub Discussions category
-    categoryId:  # Category ID (get from giscus.app)
+    categoryId: "DIC_kwDOPlBaDs4Cup3u" # Category ID
     mapping: "pathname" # How to map discussions (pathname, url, title, etc.)
     strict: false
-    reactionsEnabled: true # Enable reactions
+    reactionsEnabled: true # Enable reactions - allows 👍👎😄🎉😕❤️🚀👀
     emitMetadata: false
     inputPosition: "top" # Comment input position (top or bottom)
     theme: "preferred_color_scheme" # Theme (light, dark, preferred_color_scheme)
@@ -197,28 +197,28 @@ markup:
     # lineNumbersInTable：使用表来格式化行号和代码,而不是 标签。这个属性一般设置为 true.
     # noClasses：使用 class 标签，而不是内嵌的内联样式
 
-# privacy:
-#   vimeo:
-#     disabled: false
-#     simple: true
-# 
-#   twitter:
-#     disabled: false
-#     enableDNT: true
-#     simple: true
-# 
-#   instagram:
-#     disabled: false
-#     simple: true
-# 
-#   youtube:
-#     disabled: false
-#     privacyEnhanced: true
-# 
-# services:
-#   instagram:
-#     disableInlineCSS: true
-#   twitter:
-#     disableInlineCSS: true
+privacy:
+  vimeo:
+    disabled: false
+    simple: true
+
+  x:
+    disabled: false
+    enableDNT: true
+    simple: true
+
+  instagram:
+    disabled: false
+    simple: true
+
+  youtube:
+    disabled: false
+    privacyEnhanced: true
+
+services:
+  instagram:
+    disableInlineCSS: true
+  x:
+    disableInlineCSS: true
         
 

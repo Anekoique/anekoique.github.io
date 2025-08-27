@@ -1,7 +1,6 @@
 <!-- {{- /* Giscus Comments */ -}} -->
 {{ if .Site.Params.giscus.repo }}
 <div class="giscus-comments">
-    <h3 style="margin-top: 50px; margin-bottom: 20px;">💬 Comments</h3>
     <script src="https://giscus.app/client.js"
         data-repo="{{ .Site.Params.giscus.repo }}"
         data-repo-id="{{ .Site.Params.giscus.repoId }}"
@@ -19,4 +18,58 @@
         async>
     </script>
 </div>
+
+<script>
+// Function to update giscus theme
+function updateGiscusTheme() {
+    const giscusFrame = document.querySelector('iframe.giscus-frame');
+    if (!giscusFrame) return;
+    
+    // Determine current theme based on body class or localStorage
+    let theme;
+    const storedTheme = localStorage.getItem("pref-theme");
+    const isDark = document.body.classList.contains('dark');
+    
+    if (storedTheme === 'auto' || !storedTheme) {
+        // Use system preference
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } else if (isDark || storedTheme === 'dark') {
+        theme = 'dark';
+    } else {
+        theme = 'light';
+    }
+    
+    // Send message to giscus iframe to change theme
+    giscusFrame.contentWindow.postMessage({
+        giscus: {
+            setConfig: {
+                theme: theme
+            }
+        }
+    }, 'https://giscus.app');
+}
+
+// Update theme when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait a bit for giscus to load
+    setTimeout(updateGiscusTheme, 1000);
+});
+
+// Listen for theme toggle events
+const themeToggle = document.getElementById("theme-toggle");
+if (themeToggle) {
+    themeToggle.addEventListener("click", () => {
+        // Wait a bit for theme change to complete
+        setTimeout(updateGiscusTheme, 100);
+    });
+}
+
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const storedTheme = localStorage.getItem("pref-theme");
+    if (storedTheme === 'auto' || !storedTheme) {
+        setTimeout(updateGiscusTheme, 100);
+    }
+});
+</script>
 {{ end }}

@@ -222,6 +222,79 @@
 
   </footer>
 
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+
+function updateGiscusTheme() {
+    const giscusFrame = document.querySelector('iframe.giscus-frame');
+    if (!giscusFrame) return;
+    
+    
+    let theme;
+    const storedTheme = localStorage.getItem("pref-theme");
+    const isDark = document.body.classList.contains('dark');
+    
+    if (storedTheme === 'auto' || !storedTheme) {
+        
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } else if (isDark || storedTheme === 'dark') {
+        theme = 'dark';
+    } else {
+        theme = 'light';
+    }
+    
+    
+    giscusFrame.contentWindow.postMessage({
+        giscus: {
+            setConfig: {
+                theme: theme
+            }
+        }
+    }, 'https://giscus.app');
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    
+    setTimeout(updateGiscusTheme, 1000);
+});
+
+
+const themeToggle = document.getElementById("theme-toggle");
+if (themeToggle) {
+    themeToggle.addEventListener("click", () => {
+        
+        setTimeout(updateGiscusTheme, 100);
+    });
+}
+
+
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const storedTheme = localStorage.getItem("pref-theme");
+    if (storedTheme === 'auto' || !storedTheme) {
+        setTimeout(updateGiscusTheme, 100);
+    }
+});
+</script>
+
 </article>
     </main>
     
