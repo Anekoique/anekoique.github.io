@@ -1,0 +1,335 @@
+/* Left Sidebar TOC Styles */
+.toc-sidebar {
+    position: fixed;
+    left: 0;
+    top: 80px;
+    width: 300px;
+    height: calc(100vh - 100px);
+    background: rgba(var(--theme-rgb), 0.95);
+    border-right: 1px solid var(--border);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    transform: translateX(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toc-sidebar.collapsed {
+    transform: translateX(-290px);
+}
+
+.toc-toggle {
+    position: fixed;
+    left: 300px;
+    top: 100px;
+    width: 36px;
+    height: 36px;
+    background: rgba(var(--theme-rgb), 0.95);
+    border: 1px solid var(--border);
+    border-radius: 0 12px 12px 0;
+    border-left: none;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 1001;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--primary);
+    user-select: none;
+}
+
+.toc-toggle:hover {
+    background: rgba(var(--primary-rgb), 0.15);
+    transform: translateX(3px);
+    box-shadow: 3px 0 15px rgba(0, 0, 0, 0.2);
+}
+
+.toc-toggle:active {
+    transform: translateX(1px);
+    transition: transform 0.1s ease;
+}
+
+.toc-sidebar.collapsed + .toc-toggle {
+    left: 10px;
+    border-radius: 0 12px 12px 0;
+    transform: translateX(0);
+}
+
+.toc-sidebar.collapsed + .toc-toggle:hover {
+    transform: translateX(3px);
+}
+
+/* Custom scrollbar for webkit browsers */
+.toc-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.toc-sidebar::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+.toc-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.toc-sidebar::-webkit-scrollbar-track-piece {
+    background: transparent;
+}
+
+.toc-sidebar::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    border: 1px solid transparent;
+    background-clip: content-box;
+}
+
+.toc-sidebar::-webkit-scrollbar-thumb:hover {
+    background-clip: content-box;
+}
+
+/* Light theme scrollbar */
+:root:not(.dark) .toc-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.4);
+    border-radius: 3px;
+}
+
+:root:not(.dark) .toc-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.6);
+}
+
+/* Dark theme scrollbar */
+.dark .toc-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(160, 160, 160, 0.4);
+}
+
+.dark .toc-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(160, 160, 160, 0.6);
+}
+
+/* Firefox scrollbar colors */
+:root:not(.dark) .toc-sidebar {
+    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
+}
+
+.dark .toc-sidebar {
+    scrollbar-color: rgba(160, 160, 160, 0.4) transparent;
+}
+
+.toc-container {
+    padding: 24px 16px 24px 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.toc-header {
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--primary);
+    padding-bottom: 12px;
+    opacity: 0.9;
+}
+
+.toc-title {
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--primary);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.toc-nav {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-bottom: 20px;
+    max-width: 100%;
+}
+
+.toc-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.toc-nav li {
+    margin: 2px 0;
+    padding: 0;
+}
+
+.toc-nav a {
+    display: block;
+    padding: 8px 8px 8px 12px;
+    color: var(--secondary);
+    text-decoration: none;
+    font-size: 14px;
+    line-height: 1.5;
+    border-radius: 8px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    border-left: 3px solid transparent;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.toc-nav a:hover {
+    color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.1);
+    transform: translateX(4px);
+    border-left-color: var(--primary);
+}
+
+.toc-nav a.active {
+    color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.15);
+    font-weight: 500;
+    border-left-color: var(--primary);
+}
+
+.toc-nav ul ul {
+    margin-left: 20px;
+    border-left: 1px dashed var(--border);
+    padding-left: 12px;
+    position: relative;
+}
+
+.toc-nav ul ul::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--primary), transparent);
+    opacity: 0.3;
+}
+
+.toc-nav ul ul a {
+    font-size: 13px;
+    opacity: 0.85;
+    padding: 6px 10px;
+}
+
+.toc-nav ul ul ul a {
+    font-size: 12px;
+    opacity: 0.7;
+    padding-left: 8px;
+}
+
+/* Reading Progress Bar */
+.reading-progress {
+    position: relative;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 16px 0;
+}
+
+.reading-progress::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    opacity: 0.3;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    width: 0%;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Sidebar as overlay - no layout changes to main content */
+
+/* Mobile responsiveness */
+@media screen and (max-width: 1200px) {
+    .toc-sidebar {
+        width: 280px;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .toc-sidebar {
+        display: none;
+    }
+}
+
+/* Dark mode specific adjustments */
+.dark .toc-sidebar {
+    background: rgba(var(--theme-rgb), 0.95);
+    border-right-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+}
+
+.dark .toc-nav a:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.dark .toc-nav a.active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.dark .toc-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.dark .toc-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.dark .toc-sidebar {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+/* Enhanced visual effects */
+.toc-sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent, var(--primary), transparent);
+    opacity: 0.5;
+}
+
+/* Smooth transitions */
+.toc-nav a, .progress-bar, .toc-sidebar {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}

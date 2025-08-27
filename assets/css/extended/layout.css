@@ -1,0 +1,35 @@
+/* Layout customization - slight width increase that doesn't interfere with sidebar */
+:root {
+    --main-width: 760px; /* Small increase from 720px */
+}
+
+/* No additional width increase on large screens to avoid sidebar conflicts */
+
+/* Maintain reasonable width on medium screens */
+@media screen and (max-width: 768px) {
+    :root {
+        --main-width: 100%; /* Full width on mobile */
+    }
+    
+    .main {
+        padding: var(--gap) calc(var(--gap) / 2);
+    }
+}
+
+/* Optimize content layout */
+.post-content {
+    line-height: 1.7; /* Slightly increase line height for better readability with wider content */
+}
+
+/* Ensure code blocks and other elements adapt to wider content */
+.post-content pre,
+.post-content .highlight {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* Improve image layout in wider content */
+.post-content img {
+    max-width: 100%;
+    height: auto;
+}

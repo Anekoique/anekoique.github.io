@@ -1,0 +1,7 @@
+{{- /* Custom head extensions */ -}}
+
+{{- if .Param "ShowToc" -}}
+{{- if eq (.Param "TocSide") "left" -}}
+<script src="{{ "js/toc-sidebar.js" | absURL }}" defer></script>
+{{- end -}}
+{{- end -}}

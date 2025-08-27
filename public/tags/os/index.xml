@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>OS on Anekoique&#39;s Blog</title>
+    <link>https://anekoique.github.io/tags/os/</link>
+    <description>Recent content in OS on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.148.2</generator>
+    <language>en</language>
+    <lastBuildDate>Wed, 27 Aug 2025 11:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/tags/os/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>MIT6.1810 Lab简记</title>
+      <link>https://anekoique.github.io/posts/mit6.1810/</link>
+      <pubDate>Wed, 27 Aug 2025 11:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/posts/mit6.1810/</guid>
+      <description>&lt;p&gt;the course is the new version of 6.828 and 6.s081（24 fall）&lt;/p&gt;
+&lt;div class=&#34;callout callout-important&#34;&gt;
+  &lt;div class=&#34;callout-header&#34;&gt;
+    &lt;span class=&#34;callout-icon&#34;&gt;&lt;svg width=&#34;16&#34; height=&#34;16&#34; viewBox=&#34;0 0 16 16&#34;&gt;&lt;path fill=&#34;currentColor&#34; d=&#34;M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;
+    &lt;span class=&#34;callout-title&#34;&gt;IMPORTANT&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div class=&#34;callout-content&#34;&gt;
+    &lt;p&gt;我们已经在你学长学姐的实验报告中多次看到类似的悔恨: 因为没有及时记录实验心得而在编写实验报告的时候忘记了自己经历趣事的细节. 为了和助教们分享你的各种实验经历, 我们建议你在实验过程中随时记录实验心得, 比如自己踩过的大坑, 或者是调了一周之后才发现的一个弱智bug, 等等.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

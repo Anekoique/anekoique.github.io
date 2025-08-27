@@ -1,0 +1,33 @@
+{{- $src := .Get "src" -}}
+{{- $alt := .Get "alt" | default $src -}}
+{{- $caption := .Get "caption" -}}
+{{- $size := .Get "size" | default "medium" -}}
+{{- $class := .Get "class" | default "" -}}
+{{- $style := .Get "style" | default "" -}}
+
+{{- $validSizes := slice "tiny" "small" "medium" "large" "full" -}}
+{{- if not (in $validSizes $size) -}}
+  {{- $size = "medium" -}}
+{{- end -}}
+
+<div class="image-container">
+  {{- if eq $class "tech-diagram" -}}
+  <div class="tech-diagram">
+  {{- else if eq $class "code-screenshot" -}}
+  <div class="code-screenshot">
+  {{- end -}}
+  
+  <img src="{{ $src }}" 
+       alt="{{ $alt }}" 
+       class="img-{{ $size }}{{ with $class }} {{ . }}{{ end }}"
+       {{- with $style }} style="{{ . }}"{{ end }}
+       loading="lazy" />
+  
+  {{- if or (eq $class "tech-diagram") (eq $class "code-screenshot") -}}
+  </div>
+  {{- end -}}
+  
+  {{- with $caption -}}
+  <div class="image-caption">{{ . | markdownify }}</div>
+  {{- end -}}
+</div>

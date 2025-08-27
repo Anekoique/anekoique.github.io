@@ -1,0 +1,278 @@
+/* Beautiful unified image styling */
+
+/* Base image styles - 统一样式，确保居中 */
+.post-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+  margin: 1rem auto; /* 确保上下左右居中 */
+  display: block; /* 块级元素确保居中生效 */
+  transition: all 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: transparent !important; /* 强制透明背景 */
+}
+
+[data-theme="dark"] .post-content img {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent !important; /* 强制透明背景 */
+}
+
+/* Hover effects - 统一悬停效果 */
+.post-content img:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+  cursor: zoom-in;
+}
+
+[data-theme="dark"] .post-content img:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Image container with caption support - 减小间距，确保居中 */
+.image-container {
+  text-align: center;
+  margin: 1.2rem auto; /* 容器本身也要居中 */
+  width: 100%;
+  display: block;
+}
+
+.image-container img {
+  margin: 0 auto 0.3rem; /* 减小图片和描述的间距 */
+  display: block; /* 确保块级元素 */
+}
+
+.image-caption {
+  font-size: 0.8em;
+  color: var(--secondary);
+  font-style: italic;
+  margin-top: 0.3rem; /* 减小间距 */
+  line-height: 1.3;
+  opacity: 0.8;
+}
+
+/* Size variants - 更合理的尺寸分布，提高优先级 */
+.post-content img.img-tiny,
+img.img-tiny {
+  max-width: 30% !important;
+  margin: 1rem auto !important;
+  display: block !important;
+}
+
+.post-content img.img-small,
+img.img-small {
+  max-width: 45% !important;
+  margin: 1rem auto !important;
+  display: block !important;
+}
+
+.post-content img.img-medium,
+img.img-medium {
+  max-width: 65% !important;
+  margin: 1rem auto !important;
+  display: block !important;
+}
+
+.post-content img.img-large,
+img.img-large {
+  max-width: 85% !important;
+  margin: 1rem auto !important;
+  display: block !important;
+}
+
+.post-content img.img-full,
+img.img-full {
+  max-width: 100% !important;
+  margin: 1rem auto !important;
+  display: block !important;
+}
+
+/* Special styling for technical diagrams and screenshots - 统一透明背景，确保居中 */
+.tech-diagram {
+  background: transparent; /* 移除白色背景 */
+  padding: 0; /* 减少内边距 */
+  border-radius: 6px;
+  box-shadow: none; /* 移除额外阴影 */
+  border: none; /* 移除边框 */
+  margin: 0 auto; /* 确保容器居中 */
+  text-align: center; /* 确保内容居中 */
+  width: 100%;
+  display: block;
+}
+
+[data-theme="dark"] .tech-diagram {
+  background: transparent; /* 透明背景 */
+  border: none;
+}
+
+.tech-diagram img {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04); /* 统一阴影 */
+  border: 1px solid rgba(0, 0, 0, 0.06); /* 统一边框 */
+  margin: 0 auto; /* 确保图片在容器内居中 */
+  display: block; /* 块级元素 */
+  border-radius: 6px;
+  background: transparent !important; /* 强制透明背景 */
+}
+
+/* 确保容器内的尺寸类也能正确应用 */
+.tech-diagram img.img-tiny,
+.code-screenshot img.img-tiny {
+  max-width: 30% !important;
+}
+
+.tech-diagram img.img-small,
+.code-screenshot img.img-small {
+  max-width: 45% !important;
+}
+
+.tech-diagram img.img-medium,
+.code-screenshot img.img-medium {
+  max-width: 65% !important;
+}
+
+.tech-diagram img.img-large,
+.code-screenshot img.img-large {
+  max-width: 85% !important;
+}
+
+.tech-diagram img.img-full,
+.code-screenshot img.img-full {
+  max-width: 100% !important;
+}
+
+[data-theme="dark"] .tech-diagram img {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Code screenshot styling - 统一样式，确保居中 */
+.code-screenshot {
+  background: transparent; /* 透明背景 */
+  padding: 0; /* 移除内边距 */
+  border-radius: 6px;
+  border: none; /* 移除边框 */
+  margin: 0 auto; /* 确保容器居中 */
+  text-align: center; /* 确保内容居中 */
+  width: 100%;
+  display: block;
+}
+
+.code-screenshot img {
+  border-radius: 6px;
+  margin: 0 auto; /* 确保图片在容器内居中 */
+  display: block; /* 块级元素 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04); /* 统一阴影 */
+  border: 1px solid rgba(0, 0, 0, 0.06); /* 统一边框 */
+  background: transparent !important; /* 强制透明背景 */
+}
+
+[data-theme="dark"] .code-screenshot img {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Side-by-side images */
+.image-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: center; /* 确保整个行居中 */
+  margin: 1.2rem 0; /* 统一间距 */
+  flex-wrap: wrap;
+}
+
+.image-row img {
+  flex: 1;
+  min-width: 300px;
+  margin: 0 auto; /* 确保每个图片居中 */
+  display: block;
+}
+
+/* Responsive design - 移动端统一样式 */
+@media (max-width: 768px) {
+  .post-content img {
+    margin: 0.8rem auto; /* 确保移动端也居中 */
+    border-radius: 6px;
+    display: block; /* 确保块级元素 */
+  }
+  
+  .image-container {
+    margin: 1rem 0; /* 减小移动端间距 */
+    text-align: center; /* 确保容器内容居中 */
+  }
+  
+  .image-container img {
+    margin: 0 auto 0.2rem; /* 移动端更紧凑的间距，保持居中 */
+    display: block;
+  }
+  
+  .image-caption {
+    font-size: 0.75em; /* 移动端稍小字体 */
+    margin-top: 0.2rem;
+    text-align: center; /* 描述文字也居中 */
+  }
+  
+  .image-row {
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: center; /* 确保列方向居中 */
+  }
+  
+  .image-row img {
+    min-width: auto;
+    margin: 0 auto; /* 确保每个图片居中 */
+    display: block;
+  }
+  
+  .img-tiny,
+  .img-small,
+  .img-medium,
+  .img-large {
+    max-width: 100%;
+  }
+}
+
+/* 完全移除图片背景，确保透明 */
+.post-content img {
+  background: transparent !important;
+  min-height: auto;
+}
+
+[data-theme="dark"] .post-content img {
+  background: transparent !important;
+}
+
+/* 确保加载完成的图片也是透明背景 */
+.post-content img[src] {
+  background: transparent !important;
+  min-height: auto;
+}
+
+/* Figure styling for semantic markup */
+figure {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+figure img {
+  margin: 0 auto 0.5rem;
+}
+
+figcaption {
+  font-size: 0.85em;
+  color: var(--secondary);
+  font-style: italic;
+  line-height: 1.4;
+  margin-top: 0.5rem;
+}
+
+/* Lightbox effect preparation */
+.post-content img.lightbox {
+  cursor: zoom-in;
+  transition: all 0.3s ease;
+}
+
+.post-content img.lightbox:hover {
+  opacity: 0.9;
+}
