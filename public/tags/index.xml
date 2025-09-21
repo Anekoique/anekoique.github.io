@@ -2,38 +2,38 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Tags on Anekoique&#39;s Blog</title>
-    <link>https://anekoique.github.io/tags/</link>
+    <link>http://localhost:1313/tags/</link>
     <description>Recent content in Tags on Anekoique&#39;s Blog</description>
     <generator>Hugo -- 0.150.0</generator>
     <language>en</language>
     <lastBuildDate>Sun, 21 Sep 2025 17:08:45 +0800</lastBuildDate>
-    <atom:link href="https://anekoique.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="http://localhost:1313/tags/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>LKL</title>
-      <link>https://anekoique.github.io/tags/lkl/</link>
+      <link>http://localhost:1313/tags/lkl/</link>
       <pubDate>Sun, 21 Sep 2025 17:08:45 +0800</pubDate>
-      <guid>https://anekoique.github.io/tags/lkl/</guid>
+      <guid>http://localhost:1313/tags/lkl/</guid>
       <description></description>
     </item>
     <item>
       <title>OS</title>
-      <link>https://anekoique.github.io/tags/os/</link>
+      <link>http://localhost:1313/tags/os/</link>
       <pubDate>Sun, 21 Sep 2025 17:08:45 +0800</pubDate>
-      <guid>https://anekoique.github.io/tags/os/</guid>
+      <guid>http://localhost:1313/tags/os/</guid>
       <description></description>
     </item>
     <item>
       <title>UINTR</title>
-      <link>https://anekoique.github.io/tags/uintr/</link>
+      <link>http://localhost:1313/tags/uintr/</link>
       <pubDate>Sun, 21 Sep 2025 17:08:45 +0800</pubDate>
-      <guid>https://anekoique.github.io/tags/uintr/</guid>
+      <guid>http://localhost:1313/tags/uintr/</guid>
       <description></description>
     </item>
     <item>
       <title>Hello-World</title>
-      <link>https://anekoique.github.io/tags/hello-world/</link>
+      <link>http://localhost:1313/tags/hello-world/</link>
       <pubDate>Wed, 27 Aug 2025 10:00:00 +0800</pubDate>
-      <guid>https://anekoique.github.io/tags/hello-world/</guid>
+      <guid>http://localhost:1313/tags/hello-world/</guid>
       <description></description>
     </item>
   </channel>
