@@ -4,10 +4,43 @@
     <title>OS on Anekoique&#39;s Blog</title>
     <link>https://anekoique.github.io/tags/os/</link>
     <description>Recent content in OS on Anekoique&#39;s Blog</description>
-    <generator>Hugo -- 0.148.2</generator>
+    <generator>Hugo -- 0.150.0</generator>
     <language>en</language>
-    <lastBuildDate>Wed, 27 Aug 2025 11:00:00 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 21 Sep 2025 17:08:45 +0800</lastBuildDate>
     <atom:link href="https://anekoique.github.io/tags/os/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Basic Mechanism of LKL and UINTR</title>
+      <link>https://anekoique.github.io/posts/lkl_uintr/</link>
+      <pubDate>Sun, 21 Sep 2025 17:08:45 +0800</pubDate>
+      <guid>https://anekoique.github.io/posts/lkl_uintr/</guid>
+      <description>&lt;h1 id=&#34;lkl&#34;&gt;LKL&lt;/h1&gt;
+&lt;h2 id=&#34;mechanism&#34;&gt;Mechanism&lt;/h2&gt;
+&lt;div class=&#34;image-container&#34;&gt;&lt;div class=&#34;tech-diagram&#34;&gt;&lt;img src=&#34;https://anekoique.github.io/images/LKL.png&#34; 
+       alt=&#34;mechanism of LKL&#34; 
+       class=&#34;img-medium tech-diagram&#34;
+       loading=&#34;lazy&#34; /&gt;&lt;/div&gt;&lt;div class=&#34;image-caption&#34;&gt;basic mechanism of LKL&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;The Request:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;An application makes a request (e.g., read) through LKL&amp;rsquo;s safe, interrupt-based system call API, then sleeps.&lt;/li&gt;
+&lt;li&gt;The LKL kernel processes the request and calls out to a native stub (a callback function provided by the application).&lt;/li&gt;
+&lt;li&gt;This stub executes the actual I/O operation using the host OS&amp;rsquo;s functions.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The Responses:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;When the host I/O is finished, the native stub is notified.&lt;/li&gt;
+&lt;li&gt;The stub triggers a simulated IRQ back into LKL to signal completion.&lt;/li&gt;
+&lt;li&gt;LKL handles this completion and wakes up the original application thread with the data or result.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;application&#34;&gt;Application&lt;/h2&gt;
+&lt;p&gt;Target:  reuse the original, high-quality Linux kernel code as a library&lt;/p&gt;
+&lt;p&gt;Code：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;arch/lkl&lt;/strong&gt;: 实现内核到用户空间的移植，提供内核运行环境&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;tools/lkl&lt;/strong&gt;: 提供用户接口，封装成库和工具供应用程序使用&lt;/p&gt;</description>
+    </item>
     <item>
       <title>MIT6.1810 Lab简记</title>
       <link>https://anekoique.github.io/posts/mit6.1810/</link>
