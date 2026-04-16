@@ -69,7 +69,7 @@ params:
   author: Anekoique
   # author: ["Me", "You"] # multiple authors
 
-  defaultTheme: auto  # defaultTheme: light or  dark
+  defaultTheme: dark  # defaultTheme: light or  dark
   disableThemeToggle: false
   DateFormat: "2006-01-02"
   ShowShareButtons: false
@@ -115,7 +115,7 @@ params:
     - name: github
       url: "https://github.com/Anekoique"
     - name: email
-      url: "mailto:ctolu01@gmail.com"
+      url: "mailto:anekoique@gmail.com"
 
   label:
     text: "Anekoique's Blog"
@@ -170,7 +170,7 @@ params:
     reactionsEnabled: true # Enable reactions - allows 👍👎😄🎉😕❤️🚀👀
     emitMetadata: false
     inputPosition: "top" # Comment input position (top or bottom)
-    theme: "preferred_color_scheme" # Theme (light, dark, preferred_color_scheme)
+    theme: "preferred_color_scheme" # Initial; JS re-syncs to site theme once iframe mounts
     lang: "en" # Language
     loading: "lazy" # Loading strategy
 
@@ -184,16 +184,13 @@ markup:
     renderer:
       unsafe: true # HUGO 默认转义 Markdown 文件中的 HTML 代码，如需开启的话
   highlight:
-    # anchorLineNos: true
-    codeFences: true # 代码围栏功能
-    guessSyntax: true # 猜测语法
-    # hl_Lines：高亮的行号，一般这个不设置，因为每个代码块我们可能希望让高亮的地方不一样。
-    lineNoStart: 1 # 行号从编号几开始，一般从 1 开始。
-    lineNos: true # 是否显示行号
-    lineNumbersInTable: true # 使用表来格式化行号和代码
-    noClasses: true # 使用 class 标签，而不是内嵌的内联样式
+    codeFences: true
+    guessSyntax: true
+    lineNoStart: 1
+    lineNos: false        # disable line numbers for cleaner look
+    lineNumbersInTable: false
+    noClasses: false      # emit CSS classes so we can theme via CSS
     tabWidth: 4
-    style: monokai
 
 privacy:
   vimeo:

@@ -5,14 +5,33 @@
     top: 80px;
     width: 200px;
     height: calc(100vh - 100px);
-    background: var(--theme);
-    border-right: 1px solid var(--border);
+    background:
+        linear-gradient(180deg, var(--entry) 0%, rgba(250, 247, 241, 0.95) 100%);
+    border-right: none;
     z-index: 1000;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
     transform: translateX(0);
     transition: transform 0.3s ease;
+}
+
+/* Soft gradient right edge instead of a hard border */
+.toc-sidebar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(
+        to bottom,
+        transparent,
+        var(--border) 15%,
+        var(--border) 85%,
+        transparent
+    );
+    pointer-events: none;
 }
 
 .toc-sidebar.collapsed {
@@ -25,24 +44,26 @@
     left: 200px;
     top: 100px;
     width: 28px;
-    height: 28px;
-    background: var(--theme);
+    height: 36px;
+    background: var(--entry);
     border: 1px solid var(--border);
     border-left: none;
-    border-radius: 0 6px 6px 0;
+    border-radius: 0 10px 10px 0;
     z-index: 1001;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: left 0.3s ease, opacity 0.2s ease;
+    transition: left 0.3s ease, color 0.2s ease, box-shadow 0.2s ease;
     font-size: 14px;
     color: var(--secondary);
     user-select: none;
+    box-shadow: 2px 0 8px rgba(60, 55, 50, 0.06);
 }
 
 .toc-toggle:hover {
-    color: var(--primary);
+    color: var(--accent-gold);
+    box-shadow: 3px 0 12px rgba(201, 169, 110, 0.2);
 }
 
 .toc-sidebar.collapsed + .toc-toggle {
@@ -139,8 +160,8 @@
 
 .toc-nav a:hover {
     color: var(--primary);
-    border-left-color: var(--primary);
-    background: rgba(0, 0, 0, 0.03);
+    border-left-color: var(--accent-gold);
+    background: rgba(201, 169, 110, 0.08);
 }
 
 .dark .toc-nav a:hover {
@@ -150,8 +171,8 @@
 .toc-nav a.active {
     color: var(--primary);
     font-weight: 500;
-    border-left-color: var(--primary);
-    background: rgba(0, 0, 0, 0.04);
+    border-left-color: var(--accent-gold);
+    background: rgba(201, 169, 110, 0.12);
 }
 
 .dark .toc-nav a.active {
@@ -188,11 +209,10 @@
 
 .progress-bar {
     height: 100%;
-    background: var(--primary);
+    background: var(--accent-gold);
     width: 0%;
     transition: width 0.3s ease;
     border-radius: 2px;
-    opacity: 0.6;
 }
 
 /* Mobile */
@@ -203,7 +223,88 @@
     }
 }
 
-/* Dark mode border */
+/* ── Dark mode: cosmic glass sidebar ──────────────────────────────── */
 .dark .toc-sidebar {
-    border-right-color: var(--tertiary);
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(55, 90, 170, 0.2), transparent 60%),
+        radial-gradient(ellipse at 50% 100%, rgba(120, 50, 130, 0.15), transparent 65%),
+        rgba(12, 16, 30, 0.85);
+    box-shadow:
+        inset -1px 0 0 rgba(140, 160, 210, 0.1),
+        2px 0 20px rgba(0, 0, 0, 0.25);
+}
+
+.dark .toc-sidebar::after {
+    background: linear-gradient(
+        to bottom,
+        transparent,
+        rgba(140, 160, 210, 0.3) 15%,
+        rgba(160, 180, 220, 0.4) 50%,
+        rgba(140, 160, 210, 0.3) 85%,
+        transparent
+    );
+}
+
+.dark .toc-toggle {
+    background:
+        radial-gradient(ellipse at center, rgba(55, 90, 170, 0.2), rgba(12, 16, 30, 0.9));
+    border-color: rgba(140, 160, 210, 0.2);
+    color: var(--secondary);
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.dark .toc-toggle:hover {
+    color: var(--accent-gold);
+    box-shadow: 3px 0 16px rgba(212, 188, 138, 0.3);
+}
+
+.dark .toc-header {
+    border-bottom-color: rgba(140, 160, 210, 0.15);
+}
+
+.dark .toc-title {
+    color: var(--accent-gold);
+    opacity: 0.8;
+}
+
+.dark .toc-nav a {
+    color: var(--secondary);
+}
+
+.dark .toc-nav a:hover {
+    color: var(--primary);
+    background: rgba(140, 160, 210, 0.1);
+    border-left-color: var(--accent-gold);
+}
+
+.dark .toc-nav a.active {
+    color: var(--primary);
+    background: linear-gradient(
+        90deg,
+        rgba(212, 188, 138, 0.2),
+        rgba(140, 160, 210, 0.1) 80%
+    );
+    border-left-color: var(--accent-gold);
+}
+
+.dark .toc-nav ul ul {
+    border-left-color: rgba(140, 160, 210, 0.15);
+}
+
+.dark .reading-progress {
+    background: rgba(140, 160, 210, 0.15);
+}
+
+.dark .progress-bar {
+    background: linear-gradient(90deg, var(--accent-gold), rgba(212, 188, 138, 0.8));
+    box-shadow: 0 0 8px rgba(212, 188, 138, 0.4);
+}
+
+/* Sidebar scrollbar in dark mode */
+.dark .toc-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(140, 160, 210, 0.2);
+}
+
+.dark .toc-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(140, 160, 210, 0.4);
 }

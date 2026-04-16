@@ -3,6 +3,7 @@ date: '2025-09-21T17:08:45+08:00'
 draft: false
 title: 'Basic Mechanism of LKL and UINTR'
 tags: ["OS", "LKL", "UINTR"]
+summary: "An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead."
 author: "Anekoique"
 ShowToc: true
 ShowBreadCrumbs: true

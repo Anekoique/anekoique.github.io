@@ -20,93 +20,62 @@
 </div>
 
 <script>
-let updateThemeTimeout;
+(function () {
+    let lastSent = null;
 
-// Function to update giscus theme
-function updateGiscusTheme() {
-    const giscusFrame = document.querySelector('iframe.giscus-frame');
-    if (!giscusFrame || !giscusFrame.contentWindow) return;
-    
-    // Determine current theme
-    const storedTheme = localStorage.getItem("pref-theme");
-    const isDark = document.body.classList.contains('dark');
-    
-    let theme;
-    if (storedTheme === 'auto' || !storedTheme) {
-        theme = isDark ? 'dark' : 'light';
-    } else if (isDark || storedTheme === 'dark') {
-        theme = 'dark';
-    } else {
-        theme = 'light';
+    // Derive the giscus theme from the site's current state (body.dark class).
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
     }
-    
-    // Send message to giscus iframe
-    try {
-        giscusFrame.contentWindow.postMessage({
-            giscus: {
-                setConfig: {
-                    theme: theme
-                }
-            }
-        }, 'https://giscus.app');
-    } catch (error) {
-        console.debug('Giscus theme update failed:', error);
+
+    // Post a setConfig message to the giscus iframe.
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
     }
-}
 
-// Debounced theme update function
-function debouncedUpdateTheme() {
-    clearTimeout(updateThemeTimeout);
-    updateThemeTimeout = setTimeout(updateGiscusTheme, 50);
-}
-
-// Wait for giscus to load, then update theme
-function waitForGiscusAndUpdateTheme() {
-    const checkGiscus = () => {
-        const giscusFrame = document.querySelector('iframe.giscus-frame');
-        if (giscusFrame && giscusFrame.contentWindow) {
-            updateGiscusTheme();
-        } else if (document.querySelector('.giscus-comments script')) {
-            // Giscus script exists but iframe not ready yet
-            setTimeout(checkGiscus, 100);
-        }
-    };
-    checkGiscus();
-}
-
-// Update theme when page loads
-document.addEventListener('DOMContentLoaded', waitForGiscusAndUpdateTheme);
-
-// Listen for theme toggle events with immediate response
-document.addEventListener('click', (e) => {
-    if (e.target.closest('#theme-toggle')) {
-        // Use requestAnimationFrame for smooth transition
-        requestAnimationFrame(() => {
-            requestAnimationFrame(updateGiscusTheme);
-        });
+    // Ensure giscus matches the site theme — retries until the iframe is responsive.
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        // Iframe not ready; retry.
+        setTimeout(syncTheme, 150);
     }
-});
 
-// Listen for system theme changes
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    const storedTheme = localStorage.getItem("pref-theme");
-    if (storedTheme === 'auto' || !storedTheme) {
-        debouncedUpdateTheme();
-    }
-});
-
-// Listen for body class changes (theme changes)
-const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            debouncedUpdateTheme();
+    // Listen for the giscus "ready" signal to do an authoritative sync once it loads.
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            // Any message from giscus means the iframe is live; resync.
+            sendTheme(getSiteTheme());
         }
     });
-});
 
-observer.observe(document.body, {
-    attributes: true,
-    attributeFilter: ['class']
-});
+    // Also keep polling briefly after page load, because the giscus iframe loads
+    // lazily and `message` events may not include a first-paint signal.
+    let pollsLeft = 60; // ~9 seconds at 150ms
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    // React to site theme toggle.
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    // React to OS scheme change when user has no stored preference.
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
 </script>
 {{ end }}

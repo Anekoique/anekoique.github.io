@@ -3,7 +3,55 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>http://localhost:1313/</loc>
-    <lastmod>2025-09-21T17:08:45+08:00</lastmod>
+    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/fs/</loc>
+    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/linux/</loc>
+    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/memory/</loc>
+    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/os/</loc>
+    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/posts/pagecache/</loc>
+    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/posts/</loc>
+    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/</loc>
+    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/architecture/</loc>
+    <lastmod>2026-04-16T10:20:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/posts/numa/</loc>
+    <lastmod>2026-04-16T10:20:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/io/</loc>
+    <lastmod>2026-04-16T10:15:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/posts/zero_copy/</loc>
+    <lastmod>2026-04-16T10:15:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/posts/mm_model/</loc>
+    <lastmod>2026-04-16T10:10:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/cpu/</loc>
+    <lastmod>2026-04-16T10:05:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/posts/mm_consistency/</loc>
+    <lastmod>2026-04-16T10:05:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/tags/cache/</loc>
+    <lastmod>2026-04-16T10:00:00+08:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/posts/cache_coherence/</loc>
+    <lastmod>2026-04-16T10:00:00+08:00</lastmod>
   </url><url>
     <loc>http://localhost:1313/posts/lkl_uintr/</loc>
     <lastmod>2025-09-21T17:08:45+08:00</lastmod>
@@ -11,22 +59,10 @@
     <loc>http://localhost:1313/tags/lkl/</loc>
     <lastmod>2025-09-21T17:08:45+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/os/</loc>
-    <lastmod>2025-09-21T17:08:45+08:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/posts/</loc>
-    <lastmod>2025-09-21T17:08:45+08:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/tags/</loc>
-    <lastmod>2025-09-21T17:08:45+08:00</lastmod>
-  </url><url>
     <loc>http://localhost:1313/tags/uintr/</loc>
     <lastmod>2025-09-21T17:08:45+08:00</lastmod>
   </url><url>
     <loc>http://localhost:1313/posts/hello-world/</loc>
-    <lastmod>2025-08-27T10:00:00+08:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/tags/hello-world/</loc>
     <lastmod>2025-08-27T10:00:00+08:00</lastmod>
   </url><url>
     <loc>http://localhost:1313/about/</loc>

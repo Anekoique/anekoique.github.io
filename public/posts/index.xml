@@ -6,47 +6,63 @@
     <description>Recent content in Posts on Anekoique&#39;s Blog</description>
     <generator>Hugo -- 0.160.1</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 21 Sep 2025 17:08:45 +0800</lastBuildDate>
+    <lastBuildDate>Thu, 16 Apr 2026 10:25:00 +0800</lastBuildDate>
     <atom:link href="http://localhost:1313/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Page Cache</title>
+      <link>http://localhost:1313/posts/pagecache/</link>
+      <pubDate>Thu, 16 Apr 2026 10:25:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/pagecache/</guid>
+      <description>A deep dive into Linux Page Cache — how VFS, inode, and address_space organize cached file content, how Buffered I/O and mmap create and release cache pages, the four mmap mapping types, and the tools to observe cache hit rates.</description>
+    </item>
+    <item>
+      <title>NUMA</title>
+      <link>http://localhost:1313/posts/numa/</link>
+      <pubDate>Thu, 16 Apr 2026 10:20:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/numa/</guid>
+      <description>Why modern multi-socket systems moved from UMA to NUMA — the FSB bottleneck, per-socket memory controllers, local vs remote access, and how Linux handles NUMA (plus the classic MySQL swap-insanity problem fixed by interleaving).</description>
+    </item>
+    <item>
+      <title>Zero-copy</title>
+      <link>http://localhost:1313/posts/zero_copy/</link>
+      <pubDate>Thu, 16 Apr 2026 10:15:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/zero_copy/</guid>
+      <description>Zero-copy techniques in Linux — starting from the traditional read/write path (4 context switches, 2 DMA + 2 CPU copies) and walking through Direct I/O, mmap, sendfile, DMA gather, splice, and COW.</description>
+    </item>
+    <item>
+      <title>Physical Memory Model</title>
+      <link>http://localhost:1313/posts/mm_model/</link>
+      <pubDate>Thu, 16 Apr 2026 10:10:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/mm_model/</guid>
+      <description>How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.</description>
+    </item>
+    <item>
+      <title>Memory Consistency</title>
+      <link>http://localhost:1313/posts/mm_consistency/</link>
+      <pubDate>Thu, 16 Apr 2026 10:05:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/mm_consistency/</guid>
+      <description>Memory consistency models define which reorderings are legal. A walk through SC, TSO (x86), PSO, and relaxed models (ARM / POWER), plus the memory barriers used to enforce ordering when it matters.</description>
+    </item>
+    <item>
+      <title>Cache Coherence</title>
+      <link>http://localhost:1313/posts/cache_coherence/</link>
+      <pubDate>Thu, 16 Apr 2026 10:00:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/cache_coherence/</guid>
+      <description>How multi-core CPUs keep a consistent view of memory — the MESI protocol, bus snooping, cache-to-cache transfers, and the store-buffer / invalid-queue optimizations (plus the memory-ordering headaches they introduce).</description>
+    </item>
     <item>
       <title>Basic Mechanism of LKL and UINTR</title>
       <link>http://localhost:1313/posts/lkl_uintr/</link>
       <pubDate>Sun, 21 Sep 2025 17:08:45 +0800</pubDate>
       <guid>http://localhost:1313/posts/lkl_uintr/</guid>
-      <description>&lt;h1 id=&#34;lkl&#34;&gt;LKL&lt;/h1&gt;
-&lt;h2 id=&#34;mechanism&#34;&gt;Mechanism&lt;/h2&gt;
-&lt;div class=&#34;image-container&#34;&gt;&lt;div class=&#34;tech-diagram&#34;&gt;&lt;img src=&#34;http://localhost:1313/images/LKL.png&#34; 
-       alt=&#34;mechanism of LKL&#34; 
-       class=&#34;img-medium tech-diagram&#34;
-       loading=&#34;lazy&#34; /&gt;&lt;/div&gt;&lt;div class=&#34;image-caption&#34;&gt;basic mechanism of LKL&lt;/div&gt;&lt;/div&gt;
-&lt;p&gt;The Request:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;An application makes a request (e.g., read) through LKL&amp;rsquo;s safe, interrupt-based system call API, then sleeps.&lt;/li&gt;
-&lt;li&gt;The LKL kernel processes the request and calls out to a native stub (a callback function provided by the application).&lt;/li&gt;
-&lt;li&gt;This stub executes the actual I/O operation using the host OS&amp;rsquo;s functions.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;The Responses:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;When the host I/O is finished, the native stub is notified.&lt;/li&gt;
-&lt;li&gt;The stub triggers a simulated IRQ back into LKL to signal completion.&lt;/li&gt;
-&lt;li&gt;LKL handles this completion and wakes up the original application thread with the data or result.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;application&#34;&gt;Application&lt;/h2&gt;
-&lt;p&gt;Target:  reuse the original, high-quality Linux kernel code as a library&lt;/p&gt;
-&lt;p&gt;Code：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;arch/lkl&lt;/strong&gt;: 实现内核到用户空间的移植，提供内核运行环境&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;tools/lkl&lt;/strong&gt;: 提供用户接口，封装成库和工具供应用程序使用&lt;/p&gt;</description>
+      <description>An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.</description>
     </item>
     <item>
       <title>Hello World</title>
       <link>http://localhost:1313/posts/hello-world/</link>
       <pubDate>Wed, 27 Aug 2025 10:00:00 +0800</pubDate>
       <guid>http://localhost:1313/posts/hello-world/</guid>
-      <description>&lt;p&gt;Welcome to my new blog!&lt;/p&gt;</description>
+      <description>Welcome to my blog — a place to collect notes on operating systems, virtualization, agents, and whatever else I end up learning.</description>
     </item>
   </channel>
 </rss>

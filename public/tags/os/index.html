@@ -28,35 +28,7 @@
         }
 
     </style>
-    <style>
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --theme: rgb(29, 30, 32);
-                --entry: rgb(46, 46, 51);
-                --primary: rgb(218, 218, 219);
-                --secondary: rgb(155, 156, 157);
-                --tertiary: rgb(65, 66, 68);
-                --content: rgb(196, 196, 197);
-                --code-block-bg: rgb(46, 46, 51);
-                --code-bg: rgb(55, 56, 62);
-                --border: rgb(51, 51, 51);
-            }
-
-            .list {
-                background: var(--theme);
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-track {
-                background: 0 0;
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-thumb {
-                border-color: var(--theme);
-            }
-        }
-
-    </style>
-</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><meta property="og:url" content="http://localhost:1313/tags/os/">
+</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><script src="http://localhost:1313/js/starfield.js" defer></script><meta property="og:url" content="http://localhost:1313/tags/os/">
   <meta property="og:site_name" content="Anekoique&#39;s Blog">
   <meta property="og:title" content="OS">
   <meta property="og:description" content="Anekoique&#39;s personal blog about computer science, distributed systems, compilers, OS and LLM">
@@ -68,14 +40,10 @@
 
 </head>
 
-<body class="list" id="top">
+<body class="list dark" id="top">
 <script>
-    if (localStorage.getItem("pref-theme") === "dark") {
-        document.body.classList.add('dark');
-    } else if (localStorage.getItem("pref-theme") === "light") {
+    if (localStorage.getItem("pref-theme") === "light") {
         document.body.classList.remove('dark')
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.body.classList.add('dark');
     }
 
 </script>
@@ -150,17 +118,83 @@
 
 <article class="post-entry tag-entry"> 
   <header class="entry-header">
+    <h2 class="entry-hint-parent">Page Cache
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>A deep dive into Linux Page Cache — how VFS, inode, and address_space organize cached file content, how Buffered I/O and mmap create and release cache pages, the four mmap mapping types, and the tools to observe cache hit rates.</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-16 10:25:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;14 min&nbsp;·&nbsp;Anekoique</footer>
+  <a class="entry-link" aria-label="post link to Page Cache" href="http://localhost:1313/posts/pagecache/"></a>
+</article>
+
+<article class="post-entry tag-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">NUMA
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>Why modern multi-socket systems moved from UMA to NUMA — the FSB bottleneck, per-socket memory controllers, local vs remote access, and how Linux handles NUMA (plus the classic MySQL swap-insanity problem fixed by interleaving).</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-16 10:20:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;3 min&nbsp;·&nbsp;Anekoique</footer>
+  <a class="entry-link" aria-label="post link to NUMA" href="http://localhost:1313/posts/numa/"></a>
+</article>
+
+<article class="post-entry tag-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Zero-copy
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>Zero-copy techniques in Linux — starting from the traditional read/write path (4 context switches, 2 DMA &#43; 2 CPU copies) and walking through Direct I/O, mmap, sendfile, DMA gather, splice, and COW.</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-16 10:15:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;Anekoique</footer>
+  <a class="entry-link" aria-label="post link to Zero-copy" href="http://localhost:1313/posts/zero_copy/"></a>
+</article>
+
+<article class="post-entry tag-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Physical Memory Model
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-16 10:10:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;Anekoique</footer>
+  <a class="entry-link" aria-label="post link to Physical Memory Model" href="http://localhost:1313/posts/mm_model/"></a>
+</article>
+
+<article class="post-entry tag-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Memory Consistency
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>Memory consistency models define which reorderings are legal. A walk through SC, TSO (x86), PSO, and relaxed models (ARM / POWER), plus the memory barriers used to enforce ordering when it matters.</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-16 10:05:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;Anekoique</footer>
+  <a class="entry-link" aria-label="post link to Memory Consistency" href="http://localhost:1313/posts/mm_consistency/"></a>
+</article>
+
+<article class="post-entry tag-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Cache Coherence
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>How multi-core CPUs keep a consistent view of memory — the MESI protocol, bus snooping, cache-to-cache transfers, and the store-buffer / invalid-queue optimizations (plus the memory-ordering headaches they introduce).</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-16 10:00:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;4 min&nbsp;·&nbsp;Anekoique</footer>
+  <a class="entry-link" aria-label="post link to Cache Coherence" href="http://localhost:1313/posts/cache_coherence/"></a>
+</article>
+
+<article class="post-entry tag-entry"> 
+  <header class="entry-header">
     <h2 class="entry-hint-parent">Basic Mechanism of LKL and UINTR
     </h2>
   </header>
   <div class="entry-content">
-    <p>LKL Mechanism basic mechanism of LKL The Request:
-An application makes a request (e.g., read) through LKL’s safe, interrupt-based system call API, then sleeps. The LKL kernel processes the request and calls out to a native stub (a callback function provided by the application). This stub executes the actual I/O operation using the host OS’s functions. The Responses:
-When the host I/O is finished, the native stub is notified. The stub triggers a simulated IRQ back into LKL to signal completion. LKL handles this completion and wakes up the original application thread with the data or result. Application Target: reuse the original, high-quality Linux kernel code as a library
-Code：
-arch/lkl: 实现内核到用户空间的移植，提供内核运行环境
-tools/lkl: 提供用户接口，封装成库和工具供应用程序使用
-...</p>
+    <p>An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.</p>
   </div>
   <footer class="entry-footer"><span title='2025-09-21 17:08:45 +0800 CST'>2025-09-21</span>&nbsp;·&nbsp;1 min&nbsp;·&nbsp;Anekoique</footer>
   <a class="entry-link" aria-label="post link to Basic Mechanism of LKL and UINTR" href="http://localhost:1313/posts/lkl_uintr/"></a>

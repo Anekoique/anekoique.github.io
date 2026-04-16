@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Linux on Anekoique&#39;s Blog</title>
+    <link>http://localhost:1313/tags/linux/</link>
+    <description>Recent content in Linux on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.160.1</generator>
+    <language>en</language>
+    <lastBuildDate>Thu, 16 Apr 2026 10:25:00 +0800</lastBuildDate>
+    <atom:link href="http://localhost:1313/tags/linux/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Page Cache</title>
+      <link>http://localhost:1313/posts/pagecache/</link>
+      <pubDate>Thu, 16 Apr 2026 10:25:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/pagecache/</guid>
+      <description>A deep dive into Linux Page Cache — how VFS, inode, and address_space organize cached file content, how Buffered I/O and mmap create and release cache pages, the four mmap mapping types, and the tools to observe cache hit rates.</description>
+    </item>
+    <item>
+      <title>Zero-copy</title>
+      <link>http://localhost:1313/posts/zero_copy/</link>
+      <pubDate>Thu, 16 Apr 2026 10:15:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/zero_copy/</guid>
+      <description>Zero-copy techniques in Linux — starting from the traditional read/write path (4 context switches, 2 DMA + 2 CPU copies) and walking through Direct I/O, mmap, sendfile, DMA gather, splice, and COW.</description>
+    </item>
+    <item>
+      <title>Physical Memory Model</title>
+      <link>http://localhost:1313/posts/mm_model/</link>
+      <pubDate>Thu, 16 Apr 2026 10:10:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/mm_model/</guid>
+      <description>How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.</description>
+    </item>
+  </channel>
+</rss>

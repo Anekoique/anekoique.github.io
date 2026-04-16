@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Cache Coherence | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="OS, CPU, Cache">
+<meta name="description" content="How multi-core CPUs keep a consistent view of memory — the MESI protocol, bus snooping, cache-to-cache transfers, and the store-buffer / invalid-queue optimizations (plus the memory-ordering headaches they introduce).">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="http://localhost:1313/posts/cache_coherence/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/img/head.jpg">
+<link rel="apple-touch-icon" href="http://localhost:1313/img/head.jpg">
+<link rel="mask-icon" href="http://localhost:1313/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/cache_coherence/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><script src="http://localhost:1313/js/starfield.js" defer></script><meta property="og:url" content="http://localhost:1313/posts/cache_coherence/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="Cache Coherence">
+  <meta property="og:description" content="How multi-core CPUs keep a consistent view of memory — the MESI protocol, bus snooping, cache-to-cache transfers, and the store-buffer / invalid-queue optimizations (plus the memory-ordering headaches they introduce).">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2026-04-16T10:00:00+08:00">
+    <meta property="article:modified_time" content="2026-04-16T10:00:00+08:00">
+    <meta property="article:tag" content="OS">
+    <meta property="article:tag" content="CPU">
+    <meta property="article:tag" content="Cache">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Cache Coherence">
+<meta name="twitter:description" content="How multi-core CPUs keep a consistent view of memory — the MESI protocol, bus snooping, cache-to-cache transfers, and the store-buffer / invalid-queue optimizations (plus the memory-ordering headaches they introduce).">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "http://localhost:1313/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Cache Coherence",
+      "item": "http://localhost:1313/posts/cache_coherence/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Cache Coherence",
+  "name": "Cache Coherence",
+  "description": "How multi-core CPUs keep a consistent view of memory — the MESI protocol, bus snooping, cache-to-cache transfers, and the store-buffer / invalid-queue optimizations (plus the memory-ordering headaches they introduce).",
+  "keywords": [
+    "OS", "CPU", "Cache"
+  ],
+  "articleBody": "Memory Hierarchy Problem Modern multi-core CPUs depend on caches to accelerate memory access and improve performance. However, when multiple cores cache the same memory address, maintaining a consistent view of memory across all cores and main memory (known as cache coherence) becomes a tricky problem.\nHow CPU handle writes? Write-Through Caching: A core writes to a cache line, the same update is immediately writtern to main memory.\nWrite-Back Caching: A core writes to a cache line which only made in the core’s private cache. The new value is written back only when the cache line is evicted or needs to be shared.\nMESI Protocal Every cache line have four states: M E S I.\nExclusive(E):\nThe core have the data in it’s private cache.\nwrite -\u003e [M] Be written -\u003e [I] Other read -\u003e [S] Shared(S):\nOne or more cores have a copy of the latest version of the data in their caches.\nWrite -\u003e [M] Other write -\u003e [I] Modified(M):\nThe core have the latest version of the data.\nOther write -\u003e [I] Invalidated(I)\nAnother core have the latest version of the data.\nWrite -\u003e [M]\nRead -\u003e [S]/[I]\nHow caches communicate Bus snooping Bus snooping is a hardware technique where each core monitors the shared system bus to keep an eye on what other cores are doing with memory.\nEvery time a core reads or writes to a memory address, that action is broadcast on the system bus. Other cores snoop (listen) to the bus. If another core has a copy of the requested data, it can: Respond with the most recent version (in Modified or Exclusive state). Invalidate or update its own cached copy if needed. Trigger a state change in its MESI cache line. Cache-to-Cache Thansfer When a core issues a memory read request, and another core already has the most recent copy of the requested data in its cache, it can respond directly → this is called a cache-to-cache transfer.\nInstead of fetching the data from main memory, the owning core:\nSnoops the request via the bus, Recognizes that it holds the latest copy, and Sends the data directly to the requesting core. Real scenorio Bus signals\nBusRd (Bus Read)\nBusRdX (Read For Ownership) [I] -\u003e [M]\nBusUpgr (Bus Upgrade) [S] -\u003e [M]\nFlush (Write Back)\nFlushOpt (Flush Optimization) C2C\nLimitations False Sharing → MESI operates at the cache line granularity, not variable granularity. That means even if two threads access different variables, if those variables fall on the same cache line: MESI treats them as shared data. This causes unnecessary invalidations, even though no real data conflict exists. Scalability Issues → MESI relies on bus snooping, where all cores must snoop every memory transaction: As the number of cores increases, the snooping traffic grows rapidly. More cores mean more invalidations, more broadcasts, and more bus congestion. Latency on Writes → To write to a cache line that’s shared, a core must broadcast a write intent, wait for other cores to invalidate their copies, then perform the write. This adds latency, especially when multiple cores frequently access the same data, or when contention is high.\nNo Built-in Support for Synchronization → MESI doesn’t handle higher-level synchronization (like locks or barriers). It only ensures data coherence, not program correctness.\nOptimization Protocol Opt AMD MOESI (Owned state) Intel MESIF (Forward state) Store Buffers + Store Forwarding Problem: write operations have to wait for a ack, which is a unnecessary stall for CPU.\nStore buffers: write to store buffer and do another things, until receive response. Store buffer may lead to program order, Store forwarding can load data from store buffer directly.\nLimitation：memory inconsistent -\u003e memory barrier\nInvalid Queue Problem: The size of store buffer is limited, core B is busy to handle invalid ACK, core A will still blocked to wait invalid ACK.\nInvalid Queue: Core B(the busy bus) will response ACK immediately and push it into invalid queue and handle it later.\nLimitation：memory inconsistent\nLink https://medium.com/codetodeploy/cache-coherence-how-the-mesi-protocol-keeps-multi-core-cpus-consistent-a572fbdff5d2\nhttps://xiaolincoding.com/os/1_hardware/cpu_mesi.html#%E6%80%BB%E7%BB%93\nhttps://wudaijun.com/2019/04/cache-coherence-and-memory-consistency/\nhttps://aijishu.com/a/1060000000457160\n",
+  "wordCount" : "663",
+  "inLanguage": "en",
+  "datePublished": "2026-04-16T10:00:00+08:00",
+  "dateModified": "2026-04-16T10:00:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "http://localhost:1313/posts/cache_coherence/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "http://localhost:1313/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="http://localhost:1313/">Home</a>&nbsp;»&nbsp;<a href="http://localhost:1313/posts/">Posts</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Cache Coherence
+    </h1>
+    <div class="post-meta"><span title='2026-04-16 10:00:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;4 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#memory-hierarchy" aria-label="Memory Hierarchy">Memory Hierarchy</a></li>
+                <li>
+                    <a href="#problem" aria-label="Problem">Problem</a></li>
+                <li>
+                    <a href="#how-cpu-handle-writes" aria-label="How CPU handle writes?">How CPU handle writes?</a></li>
+                <li>
+                    <a href="#mesi-protocal" aria-label="MESI Protocal">MESI Protocal</a><ul>
+                    
+                <li>
+                    <a href="#how-caches-communicate" aria-label="How caches communicate">How caches communicate</a><ul>
+                    
+                <li>
+                    <a href="#bus-snooping" aria-label="Bus snooping">Bus snooping</a></li>
+                <li>
+                    <a href="#cache-to-cache-thansfer" aria-label="Cache-to-Cache Thansfer">Cache-to-Cache Thansfer</a></li></ul>
+                </li>
+                <li>
+                    <a href="#real-scenorio" aria-label="Real scenorio">Real scenorio</a></li>
+                <li>
+                    <a href="#limitations" aria-label="Limitations">Limitations</a></li>
+                <li>
+                    <a href="#optimization" aria-label="Optimization">Optimization</a><ul>
+                    
+                <li>
+                    <a href="#protocol-opt" aria-label="Protocol Opt">Protocol Opt</a></li>
+                <li>
+                    <a href="#store-buffers--store-forwarding" aria-label="Store Buffers &#43; Store Forwarding">Store Buffers + Store Forwarding</a></li>
+                <li>
+                    <a href="#invalid-queue" aria-label="Invalid Queue">Invalid Queue</a></li></ul>
+                </li></ul>
+                </li>
+                <li>
+                    <a href="#link" aria-label="Link">Link</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><h2 id="memory-hierarchy">Memory Hierarchy<a hidden class="anchor" aria-hidden="true" href="#memory-hierarchy">#</a></h2>
+<div class="image-container"><img src="/images/cache_hierarchy.png" 
+       alt="cache hierarchy" 
+       class="img-large"
+       loading="lazy" /></div>
+<div class="image-container"><img src="/images/cache_hirrarchy_table.png" 
+       alt="cache hierarchy table" 
+       class="img-large"
+       loading="lazy" /></div>
+<h2 id="problem">Problem<a hidden class="anchor" aria-hidden="true" href="#problem">#</a></h2>
+<p>Modern multi-core CPUs depend on caches to accelerate memory access and improve performance. However, when multiple cores cache the same memory address, maintaining a <strong>consistent view of memory</strong> across all cores and main memory (known as <strong>cache coherence</strong>) becomes a tricky problem.</p>
+<h2 id="how-cpu-handle-writes">How CPU handle writes?<a hidden class="anchor" aria-hidden="true" href="#how-cpu-handle-writes">#</a></h2>
+<p><strong>Write-Through Caching</strong>: A core writes to a cache line, the same update is immediately writtern to main memory.</p>
+<p><strong>Write-Back Caching</strong>: A core writes to a cache line which only made in the core&rsquo;s private cache. The new value is written back only when the cache line is evicted or needs to be shared.</p>
+<h2 id="mesi-protocal">MESI Protocal<a hidden class="anchor" aria-hidden="true" href="#mesi-protocal">#</a></h2>
+<p>Every cache line have four states: M E S I.</p>
+<div class="image-container"><img src="/images/MESI.png" 
+       alt="MESI protocol" 
+       class="img-large"
+       loading="lazy" /></div>
+<p>Exclusive(E):</p>
+<p>The core have the data in it&rsquo;s private cache.</p>
+<ul>
+<li>write -&gt; [M]</li>
+<li>Be written -&gt; [I]</li>
+<li>Other read -&gt; [S]</li>
+</ul>
+<p>Shared(S):</p>
+<p>One or more cores have a copy of the latest version of the data in their caches.</p>
+<ul>
+<li>Write -&gt; [M]</li>
+<li>Other write -&gt; [I]</li>
+</ul>
+<p>Modified(M):</p>
+<p>The core have the latest version of the data.</p>
+<ul>
+<li>Other write -&gt; [I]</li>
+</ul>
+<p>Invalidated(I)</p>
+<p>Another core have the latest version of the data.</p>
+<ul>
+<li>
+<p>Write -&gt; [M]</p>
+</li>
+<li>
+<p>Read -&gt; [S]/[I]</p>
+</li>
+</ul>
+<div class="image-container"><img src="/images/MESI_state.png" 
+       alt="MESI state transitions" 
+       class="img-large"
+       loading="lazy" /></div>
+<h3 id="how-caches-communicate">How caches communicate<a hidden class="anchor" aria-hidden="true" href="#how-caches-communicate">#</a></h3>
+<h4 id="bus-snooping">Bus snooping<a hidden class="anchor" aria-hidden="true" href="#bus-snooping">#</a></h4>
+<p><strong>Bus snooping</strong> is a hardware technique where each core monitors the <strong>shared</strong> system bus to keep an eye on what other cores are doing with memory.</p>
+<ol>
+<li>Every time a core <strong>reads or writes</strong> to a memory address, that action is <strong>broadcast</strong> on the system bus.</li>
+<li>Other cores <strong>snoop (listen)</strong> to the bus.</li>
+<li>If another core has a copy of the requested data, it can:</li>
+</ol>
+<ul>
+<li><strong>Respond</strong> with the most recent version (in Modified or Exclusive state).</li>
+<li><strong>Invalidate</strong> or <strong>update</strong> its own cached copy if needed.</li>
+<li><strong>Trigger a state change</strong> in its MESI cache line.</li>
+</ul>
+<h4 id="cache-to-cache-thansfer">Cache-to-Cache Thansfer<a hidden class="anchor" aria-hidden="true" href="#cache-to-cache-thansfer">#</a></h4>
+<p>When a core issues a memory read request, and another core already has the most recent copy of the requested data in its cache, it can respond directly → this is called a <strong>cache-to-cache transfer</strong>.</p>
+<p>Instead of fetching the data from main memory, the owning core:</p>
+<ol>
+<li><strong>Snoops</strong> the request via the bus,</li>
+<li>Recognizes that it holds the latest copy, and</li>
+<li>Sends the data directly to the requesting core.</li>
+</ol>
+<h3 id="real-scenorio">Real scenorio<a hidden class="anchor" aria-hidden="true" href="#real-scenorio">#</a></h3>
+<p>Bus signals</p>
+<ol>
+<li>
+<p>BusRd (Bus Read)</p>
+</li>
+<li>
+<p>BusRdX (Read For Ownership) [I] -&gt; [M]</p>
+</li>
+<li>
+<p>BusUpgr (Bus Upgrade) [S] -&gt; [M]</p>
+</li>
+<li>
+<p>Flush (Write Back)</p>
+</li>
+<li>
+<p>FlushOpt (Flush Optimization) C2C</p>
+</li>
+</ol>
+<h3 id="limitations">Limitations<a hidden class="anchor" aria-hidden="true" href="#limitations">#</a></h3>
+<ol>
+<li><strong>False Sharing →</strong> MESI operates at the <strong>cache line granularity</strong>, not variable granularity. That means even if two threads access <strong>different variables</strong>, if those variables fall on the same cache line:</li>
+</ol>
+<ul>
+<li>MESI treats them as <strong>shared data</strong>.</li>
+<li>This causes <strong>unnecessary invalidations</strong>, even though no real data conflict exists.</li>
+</ul>
+<ol start="2">
+<li><strong>Scalability Issues →</strong> MESI relies on <strong>bus snooping</strong>, where all cores must <strong>snoop</strong> every memory transaction:</li>
+</ol>
+<ul>
+<li>As the number of cores increases, the snooping traffic grows rapidly.</li>
+<li>More cores mean more invalidations, more broadcasts, and more bus congestion.</li>
+</ul>
+<ol start="3">
+<li>
+<p>Latency on Writes → To write to a cache line that&rsquo;s shared, a core must broadcast a write intent, wait for other cores to invalidate their copies, then perform the write. This adds latency, especially when multiple cores frequently access the same data, or when contention is high.</p>
+</li>
+<li>
+<p>No Built-in Support for Synchronization → MESI doesn&rsquo;t handle higher-level synchronization (like locks or barriers). It only ensures <strong>data coherence</strong>, not <strong>program correctness</strong>.</p>
+</li>
+</ol>
+<h3 id="optimization">Optimization<a hidden class="anchor" aria-hidden="true" href="#optimization">#</a></h3>
+<h4 id="protocol-opt">Protocol Opt<a hidden class="anchor" aria-hidden="true" href="#protocol-opt">#</a></h4>
+<ol>
+<li>AMD MOESI (Owned state)</li>
+<li>Intel MESIF (Forward state)</li>
+</ol>
+<h4 id="store-buffers--store-forwarding">Store Buffers + Store Forwarding<a hidden class="anchor" aria-hidden="true" href="#store-buffers--store-forwarding">#</a></h4>
+<p>Problem: write operations have to wait for a ack, which is a unnecessary stall for CPU.</p>
+<p>Store buffers: write to store buffer and do another things, until receive response. Store buffer may lead to program order, Store forwarding can load data from store buffer directly.</p>
+<p>Limitation：memory inconsistent  -&gt; memory barrier</p>
+<div class="image-container"><img src="/images/cache-with-store-forwarding.png" 
+       alt="cache with store forwarding" 
+       class="img-large"
+       loading="lazy" /></div>
+<h4 id="invalid-queue">Invalid Queue<a hidden class="anchor" aria-hidden="true" href="#invalid-queue">#</a></h4>
+<p>Problem: The size of store buffer is limited, core B is busy to handle invalid ACK, core A will still blocked to wait invalid ACK.</p>
+<p>Invalid Queue: Core B(the busy bus) will response ACK immediately and push it into invalid queue and handle it later.</p>
+<p>Limitation：memory inconsistent</p>
+<div class="image-container"><img src="/images/cache-with-invalid-queue.png" 
+       alt="cache with invalid queue" 
+       class="img-medium"
+       loading="lazy" /></div>
+<h2 id="link">Link<a hidden class="anchor" aria-hidden="true" href="#link">#</a></h2>
+<p><a href="https://medium.com/codetodeploy/cache-coherence-how-the-mesi-protocol-keeps-multi-core-cpus-consistent-a572fbdff5d2">https://medium.com/codetodeploy/cache-coherence-how-the-mesi-protocol-keeps-multi-core-cpus-consistent-a572fbdff5d2</a></p>
+<p><a href="https://xiaolincoding.com/os/1_hardware/cpu_mesi.html#%E6%80%BB%E7%BB%93">https://xiaolincoding.com/os/1_hardware/cpu_mesi.html#%E6%80%BB%E7%BB%93</a></p>
+<p><a href="https://wudaijun.com/2019/04/cache-coherence-and-memory-consistency/">https://wudaijun.com/2019/04/cache-coherence-and-memory-consistency/</a></p>
+<p><a href="https://aijishu.com/a/1060000000457160">https://aijishu.com/a/1060000000457160</a></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="http://localhost:1313/tags/os/">OS</a></li>
+      <li><a href="http://localhost:1313/tags/cpu/">CPU</a></li>
+      <li><a href="http://localhost:1313/tags/cache/">Cache</a></li>
+    </ul>
+<nav class="paginav">
+  <a class="prev" href="http://localhost:1313/posts/mm_consistency/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>Memory Consistency</span>
+  </a>
+  <a class="next" href="http://localhost:1313/posts/lkl_uintr/">
+    <span class="title">Next »</span>
+    <br>
+    <span>Basic Mechanism of LKL and UINTR</span>
+  </a>
+</nav>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

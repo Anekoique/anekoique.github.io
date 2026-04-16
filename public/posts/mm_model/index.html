@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Physical Memory Model | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="OS, Linux, Memory">
+<meta name="description" content="How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="http://localhost:1313/posts/mm_model/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/img/head.jpg">
+<link rel="apple-touch-icon" href="http://localhost:1313/img/head.jpg">
+<link rel="mask-icon" href="http://localhost:1313/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/mm_model/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><script src="http://localhost:1313/js/starfield.js" defer></script><meta property="og:url" content="http://localhost:1313/posts/mm_model/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="Physical Memory Model">
+  <meta property="og:description" content="How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2026-04-16T10:10:00+08:00">
+    <meta property="article:modified_time" content="2026-04-16T10:10:00+08:00">
+    <meta property="article:tag" content="OS">
+    <meta property="article:tag" content="Linux">
+    <meta property="article:tag" content="Memory">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Physical Memory Model">
+<meta name="twitter:description" content="How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "http://localhost:1313/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Physical Memory Model",
+      "item": "http://localhost:1313/posts/mm_model/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Physical Memory Model",
+  "name": "Physical Memory Model",
+  "description": "How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.",
+  "keywords": [
+    "OS", "Linux", "Memory"
+  ],
+  "articleBody": "Physical Memory Model Physical memory in a system may be addressed in different ways. Linux abstracts this diversity using one of the two memory models: FLATMEM and SPARSEMEM.\nEvetry memory model define the way to manage struct page arrays, which define pfn_to_page and page_to_pfn for the transfer to pfn and page\nFLATMEM The Flat Memory Model treats the entire physical address space as a single, continuous array of page frames.\nWith FLATMEM, the conversion between a PFN and the struct page is straightforward: PFN - ARCH_PFN_OFFSET is an index to the mem_map array.The ARCH_PFN_OFFSET defines the first page frame number for systems with physical memory starting at address different from 0.\nDISCONTIGMEM Designed for early NUMA systems, this model splits memory into distinct “nodes,” each having its own local memory map. It avoids wasting memory on large gaps between nodes but increases the computational overhead for converting physical addresses to page structures.\npage_to_pfn 与 pfn_to_page 的计算逻辑就比 FLATMEM 内存模型下的计算逻辑多了一步定位 page 所在 node 的操作。\n通过 arch_pfn_to_nid 可以根据物理页的 PFN 定位到物理页所在 node。 通过 page_to_nid 可以根据物理页结构 struct page 定义到 page 所在 node。 当定位到物理页 struct page 所在 node 之后，剩下的逻辑就和 FLATMEM 内存模型一模一样了。\n#if defined(CONFIG_DISCONTIGMEM) #define __pfn_to_page(pfn)\t\\ ({\tunsigned long __pfn = (pfn);\t\\ unsigned long __nid = arch_pfn_to_nid(__pfn); \\ NODE_DATA(__nid)-\u003enode_mem_map + arch_local_page_offset(__pfn, __nid);\\ }) #define __page_to_pfn(pg)\t\\ ({\tconst struct page *__pg = (pg);\t\\ struct pglist_data *__pgdat = NODE_DATA(page_to_nid(__pg));\t\\ (unsigned long)(__pg - __pgdat-\u003enode_mem_map) +\t\\ __pgdat-\u003enode_start_pfn;\t\\ }) SPARSEMEM The previous Discontiguous Model managed memory based on hardware “Nodes” (which vary in size). SPARSEMEM abstracts memory into fixed-size blocks called “Sections”, decoupling memory management from the physical node layout.\nPhysical memory is managed in blocks called “Sections” (struct mem_section).Each section contains section_mem_map, which points to the array of struct page for that section.\nThere are two possible ways to convert a PFN to the corresponding struct page - a “classic sparse” and “sparse vmemmap”. The selection is made at build time and it is determined by the value of CONFIG_SPARSEMEM_VMEMMAP.\nThe classic sparse encodes the section number of a page in page-\u003eflags and uses high bits of a PFN to access the section that maps that page frame. Inside a section, the PFN is the index to the array of pages.\nThe sparse vmemmap uses a virtually mapped memory map to optimize pfn_to_page and page_to_pfn operations. There is a global struct page *vmemmap pointer that points to a virtually contiguous array of struct page objects. A PFN is an index to that array and the offset of the struct page from vmemmap is the PFN of that page.\nLink physical memory model:\nhttps://www.cnblogs.com/binlovetech/p/16914715.html\n",
+  "wordCount" : "514",
+  "inLanguage": "en",
+  "datePublished": "2026-04-16T10:10:00+08:00",
+  "dateModified": "2026-04-16T10:10:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "http://localhost:1313/posts/mm_model/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "http://localhost:1313/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="http://localhost:1313/">Home</a>&nbsp;»&nbsp;<a href="http://localhost:1313/posts/">Posts</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Physical Memory Model
+    </h1>
+    <div class="post-meta"><span title='2026-04-16 10:10:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#physical-memory-model" aria-label="Physical Memory Model">Physical Memory Model</a><ul>
+                    
+                <li>
+                    <a href="#flatmem" aria-label="FLATMEM">FLATMEM</a></li>
+                <li>
+                    <a href="#discontigmem" aria-label="DISCONTIGMEM">DISCONTIGMEM</a></li>
+                <li>
+                    <a href="#sparsemem" aria-label="SPARSEMEM">SPARSEMEM</a></li></ul>
+                </li>
+                <li>
+                    <a href="#link" aria-label="Link">Link</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><h2 id="physical-memory-model">Physical Memory Model<a hidden class="anchor" aria-hidden="true" href="#physical-memory-model">#</a></h2>
+<p>Physical memory in a system may be addressed in different ways. Linux abstracts this diversity using one of the two memory models: FLATMEM and SPARSEMEM.</p>
+<p>Evetry memory model define the way to manage <code>struct page</code> arrays, which define <code>pfn_to_page</code> and <code>page_to_pfn</code> for the transfer to pfn and page</p>
+<h3 id="flatmem">FLATMEM<a hidden class="anchor" aria-hidden="true" href="#flatmem">#</a></h3>
+<p>The Flat Memory Model treats the entire physical address space as a single, continuous array of page frames.</p>
+<p>With FLATMEM, the conversion between a PFN and the <code>struct page</code> is straightforward: PFN - ARCH_PFN_OFFSET is an index to the mem_map array.The ARCH_PFN_OFFSET defines the first page frame number for systems with physical memory starting at address different from 0.</p>
+<h3 id="discontigmem">DISCONTIGMEM<a hidden class="anchor" aria-hidden="true" href="#discontigmem">#</a></h3>
+<div class="image-container"><img src="/images/DISCONTIGMEM.png" 
+       alt="DISCONTIGMEM memory model" 
+       class="img-medium"
+       loading="lazy" /></div>
+<p>Designed for early NUMA systems, this model splits memory into distinct &ldquo;nodes,&rdquo; each having its own local memory map.
+It avoids wasting memory on large gaps between nodes but increases the computational overhead for converting physical addresses to page structures.</p>
+<p><code>page_to_pfn</code> 与 <code>pfn_to_page</code> 的计算逻辑就比 FLATMEM 内存模型下的计算逻辑多了一步定位 <code>page</code> 所在 <code>node</code> 的操作。</p>
+<ul>
+<li>通过 <code>arch_pfn_to_nid</code> 可以根据物理页的 PFN 定位到物理页所在 <code>node</code>。</li>
+<li>通过 <code>page_to_nid</code> 可以根据物理页结构 <code>struct page</code> 定义到 <code>page</code> 所在 <code>node</code>。</li>
+</ul>
+<p>当定位到物理页 <code>struct page</code> 所在 <code>node</code> 之后，剩下的逻辑就和 FLATMEM 内存模型一模一样了。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#if defined(CONFIG_DISCONTIGMEM)
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cp">#define __pfn_to_page(pfn)			\
+</span></span></span><span class="line"><span class="cl"><span class="cp">({	unsigned long __pfn = (pfn);		\
+</span></span></span><span class="line"><span class="cl"><span class="cp">	unsigned long __nid = arch_pfn_to_nid(__pfn);  \
+</span></span></span><span class="line"><span class="cl"><span class="cp">	NODE_DATA(__nid)-&gt;node_mem_map + arch_local_page_offset(__pfn, __nid);\
+</span></span></span><span class="line"><span class="cl"><span class="cp">})
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cp">#define __page_to_pfn(pg)						\
+</span></span></span><span class="line"><span class="cl"><span class="cp">({	const struct page *__pg = (pg);					\
+</span></span></span><span class="line"><span class="cl"><span class="cp">	struct pglist_data *__pgdat = NODE_DATA(page_to_nid(__pg));	\
+</span></span></span><span class="line"><span class="cl"><span class="cp">	(unsigned long)(__pg - __pgdat-&gt;node_mem_map) +			\
+</span></span></span><span class="line"><span class="cl"><span class="cp">	 __pgdat-&gt;node_start_pfn;					\
+</span></span></span><span class="line"><span class="cl"><span class="cp">})
+</span></span></span></code></pre></div><h3 id="sparsemem">SPARSEMEM<a hidden class="anchor" aria-hidden="true" href="#sparsemem">#</a></h3>
+<div class="image-container"><img src="/images/SPARSEMEM.png" 
+       alt="SPARSEMEM memory model" 
+       class="img-medium"
+       loading="lazy" /></div>
+<p>The previous Discontiguous Model managed memory based on hardware &ldquo;Nodes&rdquo; (which vary in size). SPARSEMEM abstracts memory into fixed-size blocks called &ldquo;Sections&rdquo;, decoupling memory management from the physical node layout.</p>
+<p>Physical memory is managed in blocks called &ldquo;Sections&rdquo; (struct mem_section).Each section contains section_mem_map, which points to the array of struct page for that section.</p>
+<p>There are two possible ways to convert a PFN to the corresponding <code>struct page</code> - a &ldquo;classic sparse&rdquo; and &ldquo;sparse vmemmap&rdquo;. The selection is made at build time and it is determined by the value of CONFIG_SPARSEMEM_VMEMMAP.</p>
+<ul>
+<li>
+<p>The classic sparse encodes the section number of a page in page-&gt;flags and uses high bits of a PFN to access the section that maps that page frame. Inside a section, the PFN is the index to the array of pages.</p>
+</li>
+<li>
+<p>The sparse vmemmap uses a virtually mapped memory map to optimize pfn_to_page and page_to_pfn operations. There is a global <code>struct page</code> *vmemmap pointer that points to a virtually contiguous array of <code>struct page</code> objects. A PFN is an index to that array and the offset of the <code>struct page</code> from vmemmap is the PFN of that page.</p>
+</li>
+</ul>
+<h2 id="link">Link<a hidden class="anchor" aria-hidden="true" href="#link">#</a></h2>
+<p>physical memory model:</p>
+<p><a href="https://www.cnblogs.com/binlovetech/p/16914715.html">https://www.cnblogs.com/binlovetech/p/16914715.html</a></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="http://localhost:1313/tags/os/">OS</a></li>
+      <li><a href="http://localhost:1313/tags/linux/">Linux</a></li>
+      <li><a href="http://localhost:1313/tags/memory/">Memory</a></li>
+    </ul>
+<nav class="paginav">
+  <a class="prev" href="http://localhost:1313/posts/zero_copy/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>Zero-copy</span>
+  </a>
+  <a class="next" href="http://localhost:1313/posts/mm_consistency/">
+    <span class="title">Next »</span>
+    <br>
+    <span>Memory Consistency</span>
+  </a>
+</nav>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

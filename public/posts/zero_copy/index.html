@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Zero-copy | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="OS, Linux, IO">
+<meta name="description" content="Zero-copy techniques in Linux — starting from the traditional read/write path (4 context switches, 2 DMA &#43; 2 CPU copies) and walking through Direct I/O, mmap, sendfile, DMA gather, splice, and COW.">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="http://localhost:1313/posts/zero_copy/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/img/head.jpg">
+<link rel="apple-touch-icon" href="http://localhost:1313/img/head.jpg">
+<link rel="mask-icon" href="http://localhost:1313/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/zero_copy/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><script src="http://localhost:1313/js/starfield.js" defer></script><meta property="og:url" content="http://localhost:1313/posts/zero_copy/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="Zero-copy">
+  <meta property="og:description" content="Zero-copy techniques in Linux — starting from the traditional read/write path (4 context switches, 2 DMA &#43; 2 CPU copies) and walking through Direct I/O, mmap, sendfile, DMA gather, splice, and COW.">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2026-04-16T10:15:00+08:00">
+    <meta property="article:modified_time" content="2026-04-16T10:15:00+08:00">
+    <meta property="article:tag" content="OS">
+    <meta property="article:tag" content="Linux">
+    <meta property="article:tag" content="IO">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Zero-copy">
+<meta name="twitter:description" content="Zero-copy techniques in Linux — starting from the traditional read/write path (4 context switches, 2 DMA &#43; 2 CPU copies) and walking through Direct I/O, mmap, sendfile, DMA gather, splice, and COW.">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "http://localhost:1313/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Zero-copy",
+      "item": "http://localhost:1313/posts/zero_copy/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Zero-copy",
+  "name": "Zero-copy",
+  "description": "Zero-copy techniques in Linux — starting from the traditional read/write path (4 context switches, 2 DMA + 2 CPU copies) and walking through Direct I/O, mmap, sendfile, DMA gather, splice, and COW.",
+  "keywords": [
+    "OS", "Linux", "IO"
+  ],
+  "articleBody": "Concept Avoiding data copying operations between different memory regions reduces data copying or context switching, thereby reducing CPU load.\nTraditional Linux data transport mechanism：poll，I/O interrupt，DMA\nI/O interrupt：\nCall read [context switch] kernel initiate I/O request to disk, data load into disk buffer Send I/O interrupt to kernel Transfer data from disk buffer to kernel buffer Tranfer to user buffer [context switch] DMA:\nCall read [context switch] Kernel initiate I/O request to DMA [cpu schedule] DMA initiate I/O request to disk, data load into disk buffer Disk signals DMA controller，DMA copy data from disk buffer to kernel buffer Send I/O interrupt to kernel Transfer to user buffer [context switch] Analysis：\n4 context switch 2 DMA copy 2 CPU copy\nImpls Three ways to implement zero-copy\nDirect I/O Reduce data copies Copy-On-Write Direct I/O open with O_DIRECT， pypass kernel buffer cache\nReduce data copies mmap + write\nReplace read + write, reduce 1 CPU copy(kernel to user)\nsendfile [non modify]\ncopy in the kernel through fd (read buffer -\u003e socket buffer), reduce 2 context switch and 1 CPU copy\nsendfile + DMA gather copy [non modify]\nZero CPU copy, only transfer fd and data_len to soocket buffer, DMA directy transfer from read buffer to NIC based on the fd and data_len\nsplice [non modify]\nset pipeline to avoid CPU copy\nCOW Fork create the child process which shares the parent’s memory until it tries to write data, triggering the kernel to copy only that specific page.\nLink https://zhuanlan.zhihu.com/p/83398714\nhttps://xiaolincoding.com/os/8_network_system/zero_copy.html\n",
+  "wordCount" : "247",
+  "inLanguage": "en",
+  "datePublished": "2026-04-16T10:15:00+08:00",
+  "dateModified": "2026-04-16T10:15:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "http://localhost:1313/posts/zero_copy/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "http://localhost:1313/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="http://localhost:1313/">Home</a>&nbsp;»&nbsp;<a href="http://localhost:1313/posts/">Posts</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Zero-copy
+    </h1>
+    <div class="post-meta"><span title='2026-04-16 10:15:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#concept" aria-label="Concept">Concept</a></li>
+                <li>
+                    <a href="#traditional" aria-label="Traditional">Traditional</a></li>
+                <li>
+                    <a href="#impls" aria-label="Impls">Impls</a><ul>
+                    
+                <li>
+                    <a href="#direct-io" aria-label="Direct I/O">Direct I/O</a></li>
+                <li>
+                    <a href="#reduce-data-copies" aria-label="Reduce data copies">Reduce data copies</a></li>
+                <li>
+                    <a href="#cow" aria-label="COW">COW</a></li></ul>
+                </li>
+                <li>
+                    <a href="#link" aria-label="Link">Link</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><h2 id="concept">Concept<a hidden class="anchor" aria-hidden="true" href="#concept">#</a></h2>
+<p>Avoiding data copying operations between different memory regions reduces data copying or context switching, thereby reducing CPU load.</p>
+<h2 id="traditional">Traditional<a hidden class="anchor" aria-hidden="true" href="#traditional">#</a></h2>
+<p>Linux data transport mechanism：poll，I/O interrupt，DMA</p>
+<p><strong>I/O interrupt：</strong></p>
+<ol>
+<li>Call read [context switch]</li>
+<li>kernel initiate I/O request to disk, data load into disk buffer</li>
+<li>Send I/O interrupt to kernel</li>
+<li>Transfer data from disk buffer to kernel buffer</li>
+<li>Tranfer to user buffer [context switch]</li>
+</ol>
+<p><strong>DMA:</strong></p>
+<ol>
+<li>Call read [context switch]</li>
+<li>Kernel initiate I/O request to DMA [cpu schedule]</li>
+<li>DMA initiate I/O request to disk, data load into disk buffer</li>
+<li>Disk signals DMA controller，DMA copy data from disk buffer to kernel buffer</li>
+<li>Send I/O interrupt to kernel</li>
+<li>Transfer to user buffer [context switch]</li>
+</ol>
+<p><strong>Analysis：</strong></p>
+<p>4 context switch 2 DMA copy 2 CPU copy</p>
+<h2 id="impls">Impls<a hidden class="anchor" aria-hidden="true" href="#impls">#</a></h2>
+<p>Three ways to implement zero-copy</p>
+<ol>
+<li>Direct I/O</li>
+<li>Reduce data copies</li>
+<li>Copy-On-Write</li>
+</ol>
+<h3 id="direct-io">Direct I/O<a hidden class="anchor" aria-hidden="true" href="#direct-io">#</a></h3>
+<p>open with O_DIRECT， pypass kernel buffer cache</p>
+<h3 id="reduce-data-copies">Reduce data copies<a hidden class="anchor" aria-hidden="true" href="#reduce-data-copies">#</a></h3>
+<p><strong>mmap + write</strong></p>
+<p>Replace read + write, reduce 1 CPU copy(kernel to user)</p>
+<p><strong>sendfile</strong> [non modify]</p>
+<p>copy in the kernel through fd (read buffer -&gt; socket buffer), reduce 2 context switch and 1 CPU copy</p>
+<p><strong>sendfile + DMA gather copy</strong> [non modify]</p>
+<p>Zero CPU copy, only transfer fd and data_len to soocket buffer, DMA directy transfer from read buffer to NIC based on the fd and data_len</p>
+<p><strong>splice</strong> [non modify]</p>
+<p>set pipeline to avoid CPU copy</p>
+<h3 id="cow">COW<a hidden class="anchor" aria-hidden="true" href="#cow">#</a></h3>
+<p><code>Fork</code>  create the child process which shares the parent&rsquo;s memory until it tries to write data, triggering the kernel to copy only that specific page.</p>
+<h2 id="link">Link<a hidden class="anchor" aria-hidden="true" href="#link">#</a></h2>
+<p><a href="https://zhuanlan.zhihu.com/p/83398714">https://zhuanlan.zhihu.com/p/83398714</a></p>
+<p><a href="https://xiaolincoding.com/os/8_network_system/zero_copy.html">https://xiaolincoding.com/os/8_network_system/zero_copy.html</a></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="http://localhost:1313/tags/os/">OS</a></li>
+      <li><a href="http://localhost:1313/tags/linux/">Linux</a></li>
+      <li><a href="http://localhost:1313/tags/io/">IO</a></li>
+    </ul>
+<nav class="paginav">
+  <a class="prev" href="http://localhost:1313/posts/numa/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>NUMA</span>
+  </a>
+  <a class="next" href="http://localhost:1313/posts/mm_model/">
+    <span class="title">Next »</span>
+    <br>
+    <span>Physical Memory Model</span>
+  </a>
+</nav>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

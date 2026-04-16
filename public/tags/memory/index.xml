@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Memory on Anekoique&#39;s Blog</title>
+    <link>http://localhost:1313/tags/memory/</link>
+    <description>Recent content in Memory on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.160.1</generator>
+    <language>en</language>
+    <lastBuildDate>Thu, 16 Apr 2026 10:25:00 +0800</lastBuildDate>
+    <atom:link href="http://localhost:1313/tags/memory/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Page Cache</title>
+      <link>http://localhost:1313/posts/pagecache/</link>
+      <pubDate>Thu, 16 Apr 2026 10:25:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/pagecache/</guid>
+      <description>A deep dive into Linux Page Cache — how VFS, inode, and address_space organize cached file content, how Buffered I/O and mmap create and release cache pages, the four mmap mapping types, and the tools to observe cache hit rates.</description>
+    </item>
+    <item>
+      <title>NUMA</title>
+      <link>http://localhost:1313/posts/numa/</link>
+      <pubDate>Thu, 16 Apr 2026 10:20:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/numa/</guid>
+      <description>Why modern multi-socket systems moved from UMA to NUMA — the FSB bottleneck, per-socket memory controllers, local vs remote access, and how Linux handles NUMA (plus the classic MySQL swap-insanity problem fixed by interleaving).</description>
+    </item>
+    <item>
+      <title>Physical Memory Model</title>
+      <link>http://localhost:1313/posts/mm_model/</link>
+      <pubDate>Thu, 16 Apr 2026 10:10:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/mm_model/</guid>
+      <description>How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.</description>
+    </item>
+    <item>
+      <title>Memory Consistency</title>
+      <link>http://localhost:1313/posts/mm_consistency/</link>
+      <pubDate>Thu, 16 Apr 2026 10:05:00 +0800</pubDate>
+      <guid>http://localhost:1313/posts/mm_consistency/</guid>
+      <description>Memory consistency models define which reorderings are legal. A walk through SC, TSO (x86), PSO, and relaxed models (ARM / POWER), plus the memory barriers used to enforce ordering when it matters.</description>
+    </item>
+  </channel>
+</rss>

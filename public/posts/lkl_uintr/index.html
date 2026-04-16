@@ -7,30 +7,7 @@
 <meta name="robots" content="index, follow">
 <title>Basic Mechanism of LKL and UINTR | Anekoique&#39;s Blog</title>
 <meta name="keywords" content="OS, LKL, UINTR">
-<meta name="description" content="LKL
-Mechanism
-basic mechanism of LKL
-The Request:
-
-An application makes a request (e.g., read) through LKL&rsquo;s safe, interrupt-based system call API, then sleeps.
-The LKL kernel processes the request and calls out to a native stub (a callback function provided by the application).
-This stub executes the actual I/O operation using the host OS&rsquo;s functions.
-
-The Responses:
-
-When the host I/O is finished, the native stub is notified.
-The stub triggers a simulated IRQ back into LKL to signal completion.
-LKL handles this completion and wakes up the original application thread with the data or result.
-
-Application
-Target:  reuse the original, high-quality Linux kernel code as a library
-Code：
-
-
-arch/lkl: 实现内核到用户空间的移植，提供内核运行环境
-
-
-tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
+<meta name="description" content="An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.">
 <meta name="author" content="Anekoique">
 <link rel="canonical" href="http://localhost:1313/posts/lkl_uintr/">
 <link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
@@ -50,43 +27,10 @@ tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
         }
 
     </style>
-    <style>
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --theme: rgb(29, 30, 32);
-                --entry: rgb(46, 46, 51);
-                --primary: rgb(218, 218, 219);
-                --secondary: rgb(155, 156, 157);
-                --tertiary: rgb(65, 66, 68);
-                --content: rgb(196, 196, 197);
-                --code-block-bg: rgb(46, 46, 51);
-                --code-bg: rgb(55, 56, 62);
-                --border: rgb(51, 51, 51);
-            }
-
-            .list {
-                background: var(--theme);
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-track {
-                background: 0 0;
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-thumb {
-                border-color: var(--theme);
-            }
-        }
-
-    </style>
-</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><meta property="og:url" content="http://localhost:1313/posts/lkl_uintr/">
+</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><script src="http://localhost:1313/js/starfield.js" defer></script><meta property="og:url" content="http://localhost:1313/posts/lkl_uintr/">
   <meta property="og:site_name" content="Anekoique&#39;s Blog">
   <meta property="og:title" content="Basic Mechanism of LKL and UINTR">
-  <meta property="og:description" content="LKL Mechanism basic mechanism of LKL The Request:
-An application makes a request (e.g., read) through LKL’s safe, interrupt-based system call API, then sleeps. The LKL kernel processes the request and calls out to a native stub (a callback function provided by the application). This stub executes the actual I/O operation using the host OS’s functions. The Responses:
-When the host I/O is finished, the native stub is notified. The stub triggers a simulated IRQ back into LKL to signal completion. LKL handles this completion and wakes up the original application thread with the data or result. Application Target: reuse the original, high-quality Linux kernel code as a library
-Code：
-arch/lkl: 实现内核到用户空间的移植，提供内核运行环境
-tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
+  <meta property="og:description" content="An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.">
   <meta property="og:locale" content="en">
   <meta property="og:type" content="article">
     <meta property="article:section" content="posts">
@@ -97,30 +41,7 @@ tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
     <meta property="article:tag" content="UINTR">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Basic Mechanism of LKL and UINTR">
-<meta name="twitter:description" content="LKL
-Mechanism
-basic mechanism of LKL
-The Request:
-
-An application makes a request (e.g., read) through LKL&rsquo;s safe, interrupt-based system call API, then sleeps.
-The LKL kernel processes the request and calls out to a native stub (a callback function provided by the application).
-This stub executes the actual I/O operation using the host OS&rsquo;s functions.
-
-The Responses:
-
-When the host I/O is finished, the native stub is notified.
-The stub triggers a simulated IRQ back into LKL to signal completion.
-LKL handles this completion and wakes up the original application thread with the data or result.
-
-Application
-Target:  reuse the original, high-quality Linux kernel code as a library
-Code：
-
-
-arch/lkl: 实现内核到用户空间的移植，提供内核运行环境
-
-
-tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
+<meta name="twitter:description" content="An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.">
 
 
 <script type="application/ld+json">
@@ -149,7 +70,7 @@ tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
   "@type": "BlogPosting",
   "headline": "Basic Mechanism of LKL and UINTR",
   "name": "Basic Mechanism of LKL and UINTR",
-  "description": "LKL Mechanism basic mechanism of LKL The Request:\nAn application makes a request (e.g., read) through LKL\u0026rsquo;s safe, interrupt-based system call API, then sleeps. The LKL kernel processes the request and calls out to a native stub (a callback function provided by the application). This stub executes the actual I/O operation using the host OS\u0026rsquo;s functions. The Responses:\nWhen the host I/O is finished, the native stub is notified. The stub triggers a simulated IRQ back into LKL to signal completion. LKL handles this completion and wakes up the original application thread with the data or result. Application Target: reuse the original, high-quality Linux kernel code as a library\nCode：\narch/lkl: 实现内核到用户空间的移植，提供内核运行环境\ntools/lkl: 提供用户接口，封装成库和工具供应用程序使用\n",
+  "description": "An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.",
   "keywords": [
     "OS", "LKL", "UINTR"
   ],
@@ -178,14 +99,10 @@ tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
 </script>
 </head>
 
-<body class="" id="top">
+<body class=" dark" id="top">
 <script>
-    if (localStorage.getItem("pref-theme") === "dark") {
-        document.body.classList.add('dark');
-    } else if (localStorage.getItem("pref-theme") === "light") {
+    if (localStorage.getItem("pref-theme") === "light") {
         document.body.classList.remove('dark')
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.body.classList.add('dark');
     }
 
 </script>
@@ -422,6 +339,11 @@ tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
       <li><a href="http://localhost:1313/tags/uintr/">UINTR</a></li>
     </ul>
 <nav class="paginav">
+  <a class="prev" href="http://localhost:1313/posts/cache_coherence/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>Cache Coherence</span>
+  </a>
   <a class="next" href="http://localhost:1313/posts/hello-world/">
     <span class="title">Next »</span>
     <br>
@@ -451,95 +373,65 @@ tools/lkl: 提供用户接口，封装成库和工具供应用程序使用">
 </div>
 
 <script>
-let updateThemeTimeout;
+(function () {
+    let lastSent = null;
 
-
-function updateGiscusTheme() {
-    const giscusFrame = document.querySelector('iframe.giscus-frame');
-    if (!giscusFrame || !giscusFrame.contentWindow) return;
     
-    
-    const storedTheme = localStorage.getItem("pref-theme");
-    const isDark = document.body.classList.contains('dark');
-    
-    let theme;
-    if (storedTheme === 'auto' || !storedTheme) {
-        theme = isDark ? 'dark' : 'light';
-    } else if (isDark || storedTheme === 'dark') {
-        theme = 'dark';
-    } else {
-        theme = 'light';
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
     }
+
     
-    
-    try {
-        giscusFrame.contentWindow.postMessage({
-            giscus: {
-                setConfig: {
-                    theme: theme
-                }
-            }
-        }, 'https://giscus.app');
-    } catch (error) {
-        console.debug('Giscus theme update failed:', error);
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
     }
-}
 
-
-function debouncedUpdateTheme() {
-    clearTimeout(updateThemeTimeout);
-    updateThemeTimeout = setTimeout(updateGiscusTheme, 50);
-}
-
-
-function waitForGiscusAndUpdateTheme() {
-    const checkGiscus = () => {
-        const giscusFrame = document.querySelector('iframe.giscus-frame');
-        if (giscusFrame && giscusFrame.contentWindow) {
-            updateGiscusTheme();
-        } else if (document.querySelector('.giscus-comments script')) {
-            
-            setTimeout(checkGiscus, 100);
-        }
-    };
-    checkGiscus();
-}
-
-
-document.addEventListener('DOMContentLoaded', waitForGiscusAndUpdateTheme);
-
-
-document.addEventListener('click', (e) => {
-    if (e.target.closest('#theme-toggle')) {
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
         
-        requestAnimationFrame(() => {
-            requestAnimationFrame(updateGiscusTheme);
-        });
+        setTimeout(syncTheme, 150);
     }
-});
 
-
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    const storedTheme = localStorage.getItem("pref-theme");
-    if (storedTheme === 'auto' || !storedTheme) {
-        debouncedUpdateTheme();
-    }
-});
-
-
-const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            debouncedUpdateTheme();
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
         }
     });
-});
 
-observer.observe(document.body, {
-    attributes: true,
-    attributeFilter: ['class']
-});
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
 </script>
+
 
 </article>
     </main>

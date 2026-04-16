@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>NUMA | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="OS, Architecture, Memory">
+<meta name="description" content="Why modern multi-socket systems moved from UMA to NUMA — the FSB bottleneck, per-socket memory controllers, local vs remote access, and how Linux handles NUMA (plus the classic MySQL swap-insanity problem fixed by interleaving).">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="http://localhost:1313/posts/numa/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/img/head.jpg">
+<link rel="apple-touch-icon" href="http://localhost:1313/img/head.jpg">
+<link rel="mask-icon" href="http://localhost:1313/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/numa/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><script src="http://localhost:1313/js/starfield.js" defer></script><meta property="og:url" content="http://localhost:1313/posts/numa/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="NUMA">
+  <meta property="og:description" content="Why modern multi-socket systems moved from UMA to NUMA — the FSB bottleneck, per-socket memory controllers, local vs remote access, and how Linux handles NUMA (plus the classic MySQL swap-insanity problem fixed by interleaving).">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2026-04-16T10:20:00+08:00">
+    <meta property="article:modified_time" content="2026-04-16T10:20:00+08:00">
+    <meta property="article:tag" content="OS">
+    <meta property="article:tag" content="Architecture">
+    <meta property="article:tag" content="Memory">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="NUMA">
+<meta name="twitter:description" content="Why modern multi-socket systems moved from UMA to NUMA — the FSB bottleneck, per-socket memory controllers, local vs remote access, and how Linux handles NUMA (plus the classic MySQL swap-insanity problem fixed by interleaving).">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "http://localhost:1313/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "NUMA",
+      "item": "http://localhost:1313/posts/numa/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "NUMA",
+  "name": "NUMA",
+  "description": "Why modern multi-socket systems moved from UMA to NUMA — the FSB bottleneck, per-socket memory controllers, local vs remote access, and how Linux handles NUMA (plus the classic MySQL swap-insanity problem fixed by interleaving).",
+  "keywords": [
+    "OS", "Architecture", "Memory"
+  ],
+  "articleBody": "Background SMP and UMA Traditionally, Symmetric Multi-Processing (SMP) systems were built upon a UMA architecture.\nIn this model, every CPU accesses the system memory through a shared system bus. The term “Uniform” implies that the access time to any memory location is the same for all processors, regardless of which memory module contains the data.\nThe Bottleneck: The Northbridge and FSB Historically, all CPUs accessed memory via a dedicated chip called the Northbridge, which housed the Memory Controller. The CPUs connected to the Northbridge using the FSB (Front Side Bus).\nHowever, this design had a critical flaw:\nBus Contention: As the number of CPUs (or cores) increased, they all had to compete for the limited bandwidth of the single Front Side Bus. The “Memory Wall”: The Northbridge became a traffic bottleneck. No matter how fast the CPUs were, they spent a significant amount of time waiting for data to traverse the congested bus, severely limiting system scalability. Enter NUMA To eliminate the bottleneck of the shared FSB and Northbridge, the industry shifted to the NUMA architecture or called ccNUMA.\nThe Architectural Shift In a NUMA system, the Memory Controller is moved from the external Northbridge directly inside the CPU package. This fundamental change leads to a decentralized memory architecture:\nLocal Memory: Each CPU (or Socket) is physically connected to its own dedicated memory banks. Shared Address Space: Although memory is physically distributed, the hardware maintains a single, continuous memory address space. CPU A can still read data stored in CPU B’s memory. Memory Access The whole system may still operate as one unit, and all memory is basically accessible from everywhere, but at a potentially higher latency and lower performance.\nThe “Non-Uniform” in NUMA refers to the fact that memory access speed is no longer consistent; it depends on where the data is located relative to the CPU:\nLocal Access (Fast): When a CPU accesses memory attached to its own controller. This path has high bandwidth and extremely low latency. Remote Access (Slow): When a CPU needs to access memory attached to another CPU. The data must travel over an interconnect bus (such as Intel QPI/UPI or AMD Infinity Fabric). This adds latency and consumes inter-socket bandwidth. How Linux handles NUMA Linux automatically understands when it’s running on a NUMA architecture system and does a few things:\nEnumerates the hardware to understand the physical layout. Divides the processors (not cores) into “nodes”. With modern PC processors, this means one node per physical processor, regardless of the number of cores present. Attaches each memory module in the system to the node for the processor it is local to. Collects cost information about inter-node communication (“distance” between nodes). See how Linux enumerated your system’s NUMA layout using the numactl --hardware command.\nNUMA changes things for Linux:\neach process and thread inherits, from its parent a NUMA poicy. scheduler attempts to ensure that evetry thread initially run on the preferred node. Memory allocated for the process is allocated on a particular node. Memory allocations made on one node will not be moved to another node. The NUMA policy of any process can be changed(with numactl).\nThe problem The Problem: Imbalanced Allocation \u0026 Swapping Database processes act as single, massive memory consumers. On NUMA systems, Linux’s default “Local Allocation” policy tries to stuff all memory requests into the node where the thread is running (e.g., Node 0). Consequence: Node 0 runs out of physical memory while Node 1 remains empty. This forces the OS to swap data on Node 0 to disk, causing severe performance degradation, even though the system has plenty of global free RAM.\nThe Solution: Interleaving The standard fix is to launch MySQL using numactl –interleave=all. Mechanism: This overrides the default policy and forces memory to be allocated in a Round-Robin fashion evenly across all NUMA nodes.\n像MySQL这种外部请求随机性强，各个线程访问内存在地址上平均分布的这种应用，Interleave的内存分配模式相较默认模式可以带来一定程度的性能提升。 此外 各种 论文 中也都通过实验证实，真正造成程序在NUMA系统上性能瓶颈的并不是Remote Acess带来的响应时间损耗，而是内存的不合理分布导致Remote Access将inter-connect这个小水管塞满所造成的结果。而Interleave恰好，把这种不合理分布情况下的Remote Access请求平均分布在了各个小水管中。所以这也是Interleave效果奇佳的一个原因。\nThe Trade-off While interleaving sacrifices the slight latency benefit of local memory access, it eliminates the swapping bottleneck. For databases, the stability gained by avoiding disk I/O vastly outweighs the microsecond costs of remote memory access.\ninnodb_numa_interleave\n从5.7开始，mysql增加了对NUMA的感知：innodb_numa_interleave\n当开启了 innodb_numa_interleave 的话在为innodb buffer pool分配内存的时候将 NUMA memory policy 设置为 MPOL_INTERLEAVE 分配完后再设置回 MPOL_DEFAULT（OS默认内存分配行为，也就是zone_reclaim_mode指定的行为)。\ninnodb_numa_interleave参数是为innodb更精细化地分配innodb buffer pool 而增加的。很典型地innodb_numa_interleave为on只是更好地规避了前面所说的zone_reclaim_mode的kernel bug，kernel bug修复后这个参数没有意义了。\nLinux 识别到 NUMA 架构后，默认的内存分配方案是优先分配远程内存\nhttps://github.com/torvalds/linux/commit/4f9b16a64753d0bb607454347036dc997fd03b82\nLink summary:\nhttps://blog.csdn.net/bandaoyu/article/details/122959097\nproblem(mysql):\nhttps://blog.jcole.us/2010/09/28/mysql-swap-insanity-and-the-numa-architecture/\nhttps://cenalulu.github.io/linux/numa/\n",
+  "wordCount" : "1256",
+  "inLanguage": "en",
+  "datePublished": "2026-04-16T10:20:00+08:00",
+  "dateModified": "2026-04-16T10:20:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "http://localhost:1313/posts/numa/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "http://localhost:1313/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="http://localhost:1313/">Home</a>&nbsp;»&nbsp;<a href="http://localhost:1313/posts/">Posts</a></div>
+    <h1 class="post-title entry-hint-parent">
+      NUMA
+    </h1>
+    <div class="post-meta"><span title='2026-04-16 10:20:00 +0800 CST'>2026-04-16</span>&nbsp;·&nbsp;3 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#background" aria-label="Background">Background</a><ul>
+                    
+                <li>
+                    <a href="#smp-and-uma" aria-label="SMP and UMA">SMP and UMA</a></li>
+                <li>
+                    <a href="#the-bottleneck-the-northbridge-and-fsb" aria-label="The Bottleneck: The Northbridge and FSB">The Bottleneck: The Northbridge and FSB</a></li></ul>
+                </li>
+                <li>
+                    <a href="#enter-numa" aria-label="Enter NUMA">Enter NUMA</a><ul>
+                    
+                <li>
+                    <a href="#the-architectural-shift" aria-label="The Architectural Shift">The Architectural Shift</a></li>
+                <li>
+                    <a href="#memory-access" aria-label="Memory Access">Memory Access</a></li></ul>
+                </li>
+                <li>
+                    <a href="#how-linux-handles-numa" aria-label="How Linux handles NUMA">How Linux handles NUMA</a></li>
+                <li>
+                    <a href="#the-problem" aria-label="The problem">The problem</a></li>
+                <li>
+                    <a href="#link" aria-label="Link">Link</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><h2 id="background">Background<a hidden class="anchor" aria-hidden="true" href="#background">#</a></h2>
+<div class="image-container"><img src="/images/uma-architecture.png" 
+       alt="UMA architecture" 
+       class="img-large"
+       loading="lazy" /></div>
+<h3 id="smp-and-uma">SMP and UMA<a hidden class="anchor" aria-hidden="true" href="#smp-and-uma">#</a></h3>
+<p>Traditionally, Symmetric Multi-Processing (SMP) systems were built upon a UMA architecture.</p>
+<p>In this model, every CPU accesses the system memory through a shared system bus. The term &ldquo;Uniform&rdquo; implies that the access time to any memory location is the same for all processors, regardless of which memory module contains the data.</p>
+<h3 id="the-bottleneck-the-northbridge-and-fsb">The Bottleneck: The Northbridge and FSB<a hidden class="anchor" aria-hidden="true" href="#the-bottleneck-the-northbridge-and-fsb">#</a></h3>
+<p>Historically, all CPUs accessed memory via a dedicated chip called the <strong>Northbridge</strong>, which housed the Memory Controller. The CPUs connected to the Northbridge using the <strong>FSB (Front Side Bus)</strong>.</p>
+<p>However, this design had a critical flaw:</p>
+<ul>
+<li><strong>Bus Contention:</strong> As the number of CPUs (or cores) increased, they all had to compete for the limited bandwidth of the single Front Side Bus.</li>
+<li><strong>The &ldquo;Memory Wall&rdquo;:</strong> The Northbridge became a traffic bottleneck. No matter how fast the CPUs were, they spent a significant amount of time waiting for data to traverse the congested bus, severely limiting system scalability.</li>
+</ul>
+<h2 id="enter-numa">Enter NUMA<a hidden class="anchor" aria-hidden="true" href="#enter-numa">#</a></h2>
+<div class="image-container"><img src="/images/numa-architecture.png" 
+       alt="NUMA architecture" 
+       class="img-large"
+       loading="lazy" /></div>
+<p>To eliminate the bottleneck of the shared FSB and Northbridge, the industry shifted to the NUMA architecture or called ccNUMA.</p>
+<h3 id="the-architectural-shift">The Architectural Shift<a hidden class="anchor" aria-hidden="true" href="#the-architectural-shift">#</a></h3>
+<p>In a NUMA system, the Memory Controller is moved from the external Northbridge directly inside the CPU package. This fundamental change leads to a decentralized memory architecture:</p>
+<ol>
+<li><strong>Local Memory:</strong> Each CPU (or Socket) is physically connected to its own dedicated memory banks.</li>
+<li><strong>Shared Address Space:</strong> Although memory is physically distributed, the hardware maintains a single, continuous memory address space. CPU A can still read data stored in CPU B&rsquo;s memory.</li>
+</ol>
+<h3 id="memory-access">Memory Access<a hidden class="anchor" aria-hidden="true" href="#memory-access">#</a></h3>
+<p>The whole system may still operate as one unit, and all memory is basically accessible from everywhere, but at a potentially higher latency and lower performance.</p>
+<p>The &ldquo;Non-Uniform&rdquo; in NUMA refers to the fact that memory access speed is no longer consistent; it depends on <em>where</em> the data is located relative to the CPU:</p>
+<ul>
+<li><strong>Local Access (Fast):</strong> When a CPU accesses memory attached to its own controller. This path has high bandwidth and extremely low latency.</li>
+<li><strong>Remote Access (Slow):</strong> When a CPU needs to access memory attached to another CPU. The data must travel over an interconnect bus (such as <strong>Intel QPI/UPI</strong> or <strong>AMD Infinity Fabric</strong>). This adds latency and consumes inter-socket bandwidth.</li>
+</ul>
+<h2 id="how-linux-handles-numa">How Linux handles NUMA<a hidden class="anchor" aria-hidden="true" href="#how-linux-handles-numa">#</a></h2>
+<p>Linux automatically understands when it&rsquo;s running on a NUMA architecture system and does a few things:</p>
+<ol>
+<li>Enumerates the hardware to understand the physical layout.</li>
+<li>Divides the processors (not cores) into &ldquo;nodes&rdquo;. With modern PC processors, this means one node per physical processor, regardless of the number of cores present.</li>
+<li>Attaches each memory module in the system to the node for the processor it is local to.</li>
+<li>Collects cost information about inter-node communication (&ldquo;distance&rdquo; between nodes).</li>
+</ol>
+<p>See how Linux enumerated your system&rsquo;s NUMA layout using the <code>numactl --hardware</code> command.</p>
+<p>NUMA changes things for Linux:</p>
+<ol>
+<li>each process and thread inherits, from its parent a NUMA poicy.</li>
+<li>scheduler attempts to ensure that evetry thread initially run on the preferred node.</li>
+<li>Memory allocated for the process is allocated on a particular node.</li>
+<li>Memory allocations made on one node will <strong>not</strong> be moved to another node.</li>
+</ol>
+<p>The NUMA policy of any process can be changed(with numactl).</p>
+<h2 id="the-problem">The problem<a hidden class="anchor" aria-hidden="true" href="#the-problem">#</a></h2>
+<p><strong>The Problem: Imbalanced Allocation &amp; Swapping</strong>
+Database processes act as single, massive memory consumers. On NUMA systems, Linux&rsquo;s default &ldquo;Local Allocation&rdquo; policy tries to stuff all memory requests into the node where the thread is running (e.g., Node 0).
+Consequence: Node 0 runs out of physical memory while Node 1 remains empty. This forces the OS to swap data on Node 0 to disk, causing severe performance degradation, even though the system has plenty of global free RAM.</p>
+<p><strong>The Solution: Interleaving</strong>
+The standard fix is to launch MySQL using numactl &ndash;interleave=all.
+Mechanism: This overrides the default policy and forces memory to be allocated in a Round-Robin fashion evenly across all NUMA nodes.</p>
+<p>像MySQL这种外部请求随机性强，各个线程访问内存在地址上平均分布的这种应用，<code>Interleave</code>的内存分配模式相较默认模式可以带来一定程度的性能提升。 此外 <a href="https://www.cs.sfu.ca/~fedorova/papers/asplos284-dashti.pdf">各种</a> <a href="http://www.lst.inf.ethz.ch/people/alumni/zmajo/publications/11-systor.pdf">论文</a> 中也都通过实验证实，真正造成程序在NUMA系统上性能瓶颈的并不是<code>Remote Acess</code>带来的响应时间损耗，而是内存的不合理分布导致<code>Remote Access</code>将inter-connect这个小水管塞满所造成的结果。而<code>Interleave</code>恰好，把这种不合理分布情况下的Remote Access请求平均分布在了各个小水管中。所以这也是<code>Interleave</code>效果奇佳的一个原因。</p>
+<p><strong>The Trade-off</strong>
+While interleaving sacrifices the slight latency benefit of local memory access, it eliminates the swapping bottleneck. For databases, the stability gained by avoiding disk I/O vastly outweighs the microsecond costs of remote memory access.</p>
+<p><strong>innodb_numa_interleave</strong></p>
+<p>从5.7开始，mysql增加了对NUMA的感知：<a href="https://link.zhihu.com/?target=https%3A//dev.mysql.com/doc/refman/8.0/en/innodb-parameters.html%23sysvar_innodb_numa_interleave">innodb_numa_interleave</a></p>
+<p>当开启了 innodb_numa_interleave 的话在为innodb buffer pool分配内存的时候将 NUMA memory policy 设置为 MPOL_INTERLEAVE 分配完后再设置回 MPOL_DEFAULT（OS默认内存分配行为，也就是zone_reclaim_mode指定的行为)。</p>
+<p>innodb_numa_interleave参数是为innodb更精细化地分配innodb buffer pool 而增加的。很典型地innodb_numa_interleave为on只是更好地规避了前面所说的zone_reclaim_mode的kernel bug，<strong>kernel bug修复后这个参数没有意义了</strong>。</p>
+<p>Linux 识别到 NUMA 架构后，默认的内存分配方案是优先分配远程内存</p>
+<p><a href="https://github.com/torvalds/linux/commit/4f9b16a64753d0bb607454347036dc997fd03b82">https://github.com/torvalds/linux/commit/4f9b16a64753d0bb607454347036dc997fd03b82</a></p>
+<h2 id="link">Link<a hidden class="anchor" aria-hidden="true" href="#link">#</a></h2>
+<p>summary:</p>
+<p><a href="https://blog.csdn.net/bandaoyu/article/details/122959097">https://blog.csdn.net/bandaoyu/article/details/122959097</a></p>
+<p>problem(mysql):</p>
+<p><a href="https://blog.jcole.us/2010/09/28/mysql-swap-insanity-and-the-numa-architecture/">https://blog.jcole.us/2010/09/28/mysql-swap-insanity-and-the-numa-architecture/</a></p>
+<p><a href="https://cenalulu.github.io/linux/numa/">https://cenalulu.github.io/linux/numa/</a></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="http://localhost:1313/tags/os/">OS</a></li>
+      <li><a href="http://localhost:1313/tags/architecture/">Architecture</a></li>
+      <li><a href="http://localhost:1313/tags/memory/">Memory</a></li>
+    </ul>
+<nav class="paginav">
+  <a class="prev" href="http://localhost:1313/posts/pagecache/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>Page Cache</span>
+  </a>
+  <a class="next" href="http://localhost:1313/posts/zero_copy/">
+    <span class="title">Next »</span>
+    <br>
+    <span>Zero-copy</span>
+  </a>
+</nav>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
