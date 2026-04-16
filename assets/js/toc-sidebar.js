@@ -90,9 +90,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (tocToggle && tocSidebar) {
         console.log('TOC toggle elements found, initializing...');
         
-        // Check localStorage for saved state
-        const isCollapsed = localStorage.getItem('toc-collapsed') === 'true';
-        if (isCollapsed) {
+        // Default to collapsed, unless user explicitly expanded it
+        const isExpanded = localStorage.getItem('toc-collapsed') === 'false';
+        if (!isExpanded) {
             tocSidebar.classList.add('collapsed');
             const toggleSpan = tocToggle.querySelector('span');
             if (toggleSpan) toggleSpan.textContent = '›';

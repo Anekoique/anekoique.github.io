@@ -6,7 +6,7 @@
 
 {{- if eq $tocSide "left" -}}
 <!-- 左侧固定TOC -->
-<div class="toc-sidebar" id="toc-sidebar">
+<div class="toc-sidebar collapsed" id="toc-sidebar">
     <div class="toc-container">
         <div class="toc-header">
             <span class="toc-title">{{- i18n "toc" | default "目录" }}</span>
@@ -105,7 +105,7 @@
 
 <!-- 切换按钮 -->
 <div class="toc-toggle" id="toc-toggle" title="切换目录">
-    <span>‹</span>
+    <span>›</span>
 </div>
 
 {{- else -}}

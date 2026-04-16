@@ -1,53 +1,45 @@
-/* Layout customization - expand only main content, keep header width unchanged */
-:root {
-    /* Keep original nav width for header */
-    --nav-width: 1024px; /* Keep header at original width */
-}
+/* Layout — keep content centered on the viewport */
 
-/* Override main content width only - responsive to screen size */
 .main {
-    max-width: min(80vw, 900px); /* Use 80% of viewport width, max 900px */
+    max-width: calc(var(--main-width) + var(--gap) * 2);
     width: 100%;
+    margin: 0 auto;
+    padding: var(--gap);
 }
 
-/* Specific breakpoints for better control */
+/* Wider content on large screens */
+@media screen and (min-width: 1200px) {
+    :root {
+        --main-width: 800px;
+    }
+}
+
 @media screen and (min-width: 1600px) {
-    .main {
-        max-width: 1000px; /* Very large screens */
+    :root {
+        --main-width: 860px;
     }
 }
 
-@media screen and (min-width: 1200px) and (max-width: 1599px) {
+/* Tablets */
+@media screen and (max-width: 991px) {
     .main {
-        max-width: 900px; /* Large screens */
+        max-width: 90vw;
     }
 }
 
-@media screen and (min-width: 992px) and (max-width: 1199px) {
-    .main {
-        max-width: 800px; /* Medium-large screens */
-    }
-}
-
-@media screen and (min-width: 768px) and (max-width: 991px) {
-    .main {
-        max-width: 85vw; /* Tablets - use more of screen */
-    }
-}
-
+/* Mobile */
 @media screen and (max-width: 767px) {
     .main {
-        max-width: 95vw; /* Mobile - almost full width */
+        max-width: 100%;
         padding: var(--gap) calc(var(--gap) / 2);
     }
 }
 
-/* Optimize content layout for wider screens */
+/* Content readability */
 .post-content {
-    line-height: 1.7; /* Better readability with wider content */
+    line-height: 1.8;
 }
 
-/* Ensure all content elements adapt to wider layout */
 .post-content pre,
 .post-content .highlight,
 .post-content table,
@@ -56,47 +48,9 @@
     overflow-x: auto;
 }
 
-/* Images scale properly in wider content */
 .post-content img {
     max-width: 100%;
     height: auto;
     margin: 1rem auto;
     display: block;
-}
-
-/* Footer should follow main content width */
-.footer {
-    max-width: min(80vw, 900px);
-    margin: 0 auto;
-}
-
-/* Responsive footer adjustments */
-@media screen and (min-width: 1600px) {
-    .footer {
-        max-width: 1000px;
-    }
-}
-
-@media screen and (min-width: 1200px) and (max-width: 1599px) {
-    .footer {
-        max-width: 900px;
-    }
-}
-
-@media screen and (min-width: 992px) and (max-width: 1199px) {
-    .footer {
-        max-width: 800px;
-    }
-}
-
-@media screen and (min-width: 768px) and (max-width: 991px) {
-    .footer {
-        max-width: 85vw;
-    }
-}
-
-@media screen and (max-width: 767px) {
-    .footer {
-        max-width: 95vw;
-    }
 }
