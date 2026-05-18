@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Virtualization Series 02 — Taxonomy | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="Virtualization, Hypervisor, Systems">
+<meta name="description" content="The four largely-independent axes of VMM design: placement (Type 1 vs Type 2), guest interface (full vs paravirtual), hardware support (VT-x, EPT, IOMMU), and isolation boundary (hardware, software, language).">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="https://anekoique.github.io/virtualization/taxonomy/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="https://anekoique.github.io/img/head.jpg">
+<link rel="apple-touch-icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="mask-icon" href="https://anekoique.github.io/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://anekoique.github.io/virtualization/taxonomy/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="https://anekoique.github.io/js/toc-sidebar.js" defer></script><script src="https://anekoique.github.io/js/starfield.js" defer></script><meta property="og:url" content="https://anekoique.github.io/virtualization/taxonomy/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="Virtualization Series 02 — Taxonomy">
+  <meta property="og:description" content="The four largely-independent axes of VMM design: placement (Type 1 vs Type 2), guest interface (full vs paravirtual), hardware support (VT-x, EPT, IOMMU), and isolation boundary (hardware, software, language).">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="virtualization">
+    <meta property="article:published_time" content="2026-05-17T17:00:00+08:00">
+    <meta property="article:modified_time" content="2026-05-17T17:00:00+08:00">
+    <meta property="article:tag" content="Virtualization">
+    <meta property="article:tag" content="Hypervisor">
+    <meta property="article:tag" content="Systems">
+      <meta property="og:see_also" content="https://anekoique.github.io/posts/virtualization-survey/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/systems/xen/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/history/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/foundations/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/vmm-architecture/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/cpu/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Virtualization Series 02 — Taxonomy">
+<meta name="twitter:description" content="The four largely-independent axes of VMM design: placement (Type 1 vs Type 2), guest interface (full vs paravirtual), hardware support (VT-x, EPT, IOMMU), and isolation boundary (hardware, software, language).">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Virtualization Series",
+      "item": "https://anekoique.github.io/virtualization/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Virtualization Series 02 — Taxonomy",
+      "item": "https://anekoique.github.io/virtualization/taxonomy/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Virtualization Series 02 — Taxonomy",
+  "name": "Virtualization Series 02 — Taxonomy",
+  "description": "The four largely-independent axes of VMM design: placement (Type 1 vs Type 2), guest interface (full vs paravirtual), hardware support (VT-x, EPT, IOMMU), and isolation boundary (hardware, software, language).",
+  "keywords": [
+    "Virtualization", "Hypervisor", "Systems"
+  ],
+  "articleBody": "The previous section established what a VMM is and the classical condition under which one can be built efficiently. Real virtualization systems differ along several axes that are mostly independent of one another: a system’s choice on one axis does not determine its choice on another. KVM is a hosted VMM with an unmodified guest interface; Xen began as a bare-metal VMM with a paravirtualized guest interface and now also supports unmodified guests. Conflating these axes — as the common textbook taxonomy of “Type 1 vs. Type 2” and “Full vs. Para vs. Hardware-Assisted” often does — obscures the actual design space.\nThis section separates the axes explicitly. Four matter:\nPlacement — where the VMM sits in the software stack. Guest interface — what the guest sees, and whether it has been modified to know it is virtualized. Hardware support — what the CPU and platform provide to make virtualization efficient. Isolation boundary — what mechanism enforces separation between guest and VMM. The first three are familiar from the classical literature. The fourth is included because it is the one axis on which essentially every traditional system makes the same choice, and the design space along it is largely unexplored.\nThe purpose of this section is to name and distinguish the axes. The mechanisms by which each axis is implemented in practice — binary translation, EPT, virtio rings, and so on — are deferred to the core mechanisms sections.\nPlacement The placement axis describes where the VMM executes relative to the rest of the software stack — in particular, whether it runs directly on the hardware or on top of an existing operating system.\nType 1: bare-metal VMM A Type 1 (or bare-metal) VMM runs directly on the physical hardware. It is the most-privileged software on the machine; there is no host OS beneath it.\nguest OS guest OS guest OS │ │ │ └───────────┼───────────┘ │ VMM (bare-metal) │ hardware Examples include Xen, VMware ESXi, and Microsoft Hyper-V. Bare-metal VMMs typically achieve lower overhead than hosted ones and minimize the trusted computing base (TCB) by excluding a general-purpose OS from the privileged path. The trade-off is that the VMM must implement, or delegate, all device drivers and platform management itself.\nIn practice, most Type 1 VMMs delegate device handling to a privileged guest, often called a driver domain (Xen’s dom0) or parent partition (Hyper-V), which runs a full OS and provides backend drivers to other guests. The VMM proper is small, but the system as a whole still depends on a full OS for I/O.\nType 2: hosted VMM A Type 2 (or hosted) VMM runs as a process or kernel module on top of a conventional host operating system. The host OS owns the hardware; the VMM borrows CPU and memory from it on the host’s terms.\nguest OS guest OS │ │ └───────────┘ │ VMM ──┐ │ host OS │ hardware Examples include VMware Workstation, VirtualBox, and KVM (where the Linux kernel is the host OS and KVM is a kernel module). Hosted VMMs reuse the host’s device drivers, scheduler, and memory manager, which dramatically reduces implementation cost. The trade-offs are a larger TCB (the entire host kernel is trusted) and a longer path to hardware.\nThe blurred boundary The Type 1 / Type 2 distinction is less crisp in modern systems than the classical taxonomy suggests. KVM is conventionally classified as Type 2 because it depends on Linux, but it uses hardware virtualization extensions to run guests at the same privilege level a Type 1 VMM would. Xen is conventionally classified as Type 1, but its dependence on dom0 means a full Linux kernel is trusted in practice. The placement axis remains useful for describing the architectural relationship between VMM and OS, but it is a weaker predictor of performance and TCB size than it once was.\nGuest Interface The guest-interface axis describes what the guest sees: whether the virtual machine the VMM presents is identical to a real machine (so an unmodified OS runs on it) or whether the interface has been modified in ways the guest must be aware of.\nFull virtualization In full virtualization, the guest sees an interface indistinguishable from real hardware. The guest OS runs unmodified; it does not know it is virtualized. The advantage is compatibility — any OS that runs on the bare hardware runs in the VM. The cost is that the VMM must faithfully emulate every architectural detail the guest might observe, including legacy device interfaces, BIOS/firmware, and corner cases of CPU semantics.\nParavirtualization In paravirtualization, the VMM exposes a modified interface in which the most expensive or non-virtualizable parts of the architecture are replaced by explicit calls into the VMM (hypercalls). The guest OS is ported to this interface — it knows it is virtualized and cooperates with the VMM.\nParavirtualization was historically motivated by the x86 virtualization gap, but it is also used purely for performance: a paravirtual I/O interface (such as virtio) avoids the cost of emulating a real device by having the guest cooperate directly with the VMM through a shared ring buffer. The trade-off is that the guest OS must be modified, which precludes running closed-source operating systems unmodified and creates a maintenance burden as guest kernels evolve.\nHybrid interfaces in practice Most modern systems are hybrids. A typical configuration runs an unmodified guest OS (full virtualization, made efficient by hardware assistance) but uses paravirtual drivers (virtio-net, virtio-blk) for performance-critical I/O. The guest is “fully virtualized” with respect to CPU and memory and “paravirtualized” with respect to I/O. The clean Full / Para dichotomy of the early literature has largely given way to this mixed model.\nHardware Support The hardware-support axis describes what the underlying platform provides to make virtualization efficient — specifically, whether the CPU and platform offer features that close the Popek–Goldberg gap and reduce the cost of common virtualization operations.\nThis section names the categories of hardware support a VMM may rely on; the mechanisms themselves are treated in the core-mechanisms sections.\nNo hardware support. The VMM closes the virtualizability gap entirely in software, by rewriting the guest’s instruction stream or by modifying the guest. This is the regime in which the early VMware products and the original Xen operated. CPU virtualization extensions (Intel VT-x, AMD-V). The CPU adds a new operating mode in which the VMM executes; sensitive operations by the guest cause a trap into the VMM, restoring the classical trap-and-emulate model on architectures that originally lacked it. Memory virtualization extensions (Intel EPT, AMD NPT). The MMU adds a hardware-walked second translation layer, eliminating the need for the VMM to maintain shadow page tables. I/O virtualization extensions (Intel VT-d / IOMMU, SR-IOV). The platform virtualizes DMA and lets physical devices safely present multiple virtual functions to the host, enabling near-native I/O without VMM mediation on every transaction. These categories are mostly cumulative in practice: a modern x86 VMM uses CPU, memory, and I/O extensions together. They are listed separately because they were introduced in stages, and a system may rely on some without the others (early hardware-assisted VMMs used VT-x but still maintained shadow page tables, for example).\nIt is worth being precise about what hardware support does and does not provide. Hardware extensions make virtualization efficient — they reduce the cost of preserving the classical requirements. They do not, by themselves, make a system secure: a bug in the VMM remains a bug, and the trusted computing base of a hardware-assisted VMM is comparable to or larger than that of a software-only one. The axis here is performance and engineering complexity, not isolation strength.\nIsolation Boundary The previous three axes describe choices that every traditional VMM faces. The isolation boundary axis describes the mechanism by which the VMM is protected from its guests — and it is the axis on which the design space is, in current practice, almost entirely unexplored.\nIn every traditional system surveyed in this chapter, the isolation boundary is a hardware privilege boundary: the VMM executes at a higher CPU privilege level than the guest, controls separate page tables that the guest cannot modify, and confines DMA-capable devices through hardware enforcement. These mechanisms differ in detail but share a common structure: isolation is achieved by hardware features that distinguish “VMM memory” from “guest memory” and “VMM instructions” from “guest instructions” at silicon level. The Popek–Goldberg condition is, in the end, a statement about hardware: it asks whether the hardware traps the right instructions at the right privilege level.\nTwo non-traditional alternatives appear in the literature:\nSoftware fault isolation (SFI). The guest’s code is rewritten or verified before execution to guarantee it cannot access memory or invoke operations outside its allocation. The boundary is a property of the code itself, enforced by a verifier rather than by hardware. SFI has been used in browser sandboxes (NaCl) and OS extension mechanisms (BPF, eBPF) but not, historically, for full system virtualization. Language-level isolation. The guest is written in a safe language, and the language’s type system and runtime statically guarantee that a guest cannot forge a pointer, escape its allocated regions, or invoke privileged operations it has not been granted. The boundary is a property of the type system and is enforced at compile time. This is the approach taken by Singularity (Sing#), RedLeaf (Rust), and Theseus (Rust). A third alternative — neither pure software nor a pure language guarantee — has emerged in industry under the heading of confidential computing: AMD SEV (and SEV-SNP), Intel TDX, and ARM CCA. These mechanisms rest on hardware extensions but invert the traditional trust model: the VMM is treated as untrusted, and the hardware encrypts guest memory and CPU state so that even a compromised hypervisor cannot read or modify what runs inside the protected guest. Attestation replaces software-layer trust. This addresses tenant-vs.-VMM isolation (the dominant security concern in multi-tenant cloud), but it preserves and even widens the existing TCB-size and per-VM performance overheads. Confidential computing is therefore complementary to, not in competition with, language-level isolation: the two address different parts of the threat model.\nThe rest of this survey treats the hardware boundary as the default — every traditional system uses it, and every cost analysis assumes it.\nMapping the Design Space Because the four axes are independent, every concrete system can be described as a tuple of four choices. A few representative points in the space:\nSystem Placement Guest Interface Hardware Support Isolation Boundary VMware Workstation (early, pre-2007) Type 2 Full (binary translation) None Hardware (rings) Xen (original, 2003) Type 1 Paravirtual None Hardware (rings) KVM (modern) Type 2 (hosted in Linux) Full CPU + memory + I/O Hardware (root/non-root) Xen (modern) Type 1 Full or Paravirtual CPU + memory + I/O Hardware (root/non-root) Firecracker Type 2 (hosted in Linux/KVM) Full (minimal device set) CPU + memory + I/O Hardware (root/non-root) RedLeaf Type 1-like Custom (Rust domains) Minimal Language-level (Rust) The table is not exhaustive but illustrates the point: the axes can be combined freely, and the most underexplored quadrant of the space is the fourth column — every traditional system makes the same choice there.\nWhat this section established The traditional virtualization design space has four largely-independent axes. The first three — placement, guest interface, hardware support — are the dimensions along which traditional systems differ from one another. The fourth — isolation boundary — is the one along which traditional systems are uniform, and the one most current research is trying to open up.\nThe next section, VMM Architecture, takes the placement axis as its starting point and examines the internal structure of a VMM — the components every VMM contains and the architectural shapes (monolithic, hosted, disaggregated) into which they are organized. The core-mechanisms sections that follow then revisit the guest-interface and hardware-support axes in detail: CPU examines how full and paravirtual interfaces are realized and how CPU hardware extensions support them; Memory and I/O do the same for their respective resources.\n",
+  "wordCount" : "1988",
+  "inLanguage": "en",
+  "datePublished": "2026-05-17T17:00:00+08:00",
+  "dateModified": "2026-05-17T17:00:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://anekoique.github.io/virtualization/taxonomy/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://anekoique.github.io/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://anekoique.github.io/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://anekoique.github.io/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://anekoique.github.io/">Home</a>&nbsp;»&nbsp;<a href="https://anekoique.github.io/virtualization/">Virtualization Series</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Virtualization Series 02 — Taxonomy
+    </h1>
+    <div class="post-meta"><span title='2026-05-17 17:00:00 +0800 CST'>2026-05-17</span>&nbsp;·&nbsp;10 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#placement" aria-label="Placement">Placement</a><ul>
+                    
+                <li>
+                    <a href="#type-1-bare-metal-vmm" aria-label="Type 1: bare-metal VMM">Type 1: bare-metal VMM</a></li>
+                <li>
+                    <a href="#type-2-hosted-vmm" aria-label="Type 2: hosted VMM">Type 2: hosted VMM</a></li>
+                <li>
+                    <a href="#the-blurred-boundary" aria-label="The blurred boundary">The blurred boundary</a></li></ul>
+                </li>
+                <li>
+                    <a href="#guest-interface" aria-label="Guest Interface">Guest Interface</a><ul>
+                    
+                <li>
+                    <a href="#full-virtualization" aria-label="Full virtualization">Full virtualization</a></li>
+                <li>
+                    <a href="#paravirtualization" aria-label="Paravirtualization">Paravirtualization</a></li>
+                <li>
+                    <a href="#hybrid-interfaces-in-practice" aria-label="Hybrid interfaces in practice">Hybrid interfaces in practice</a></li></ul>
+                </li>
+                <li>
+                    <a href="#hardware-support" aria-label="Hardware Support">Hardware Support</a></li>
+                <li>
+                    <a href="#isolation-boundary" aria-label="Isolation Boundary">Isolation Boundary</a></li>
+                <li>
+                    <a href="#mapping-the-design-space" aria-label="Mapping the Design Space">Mapping the Design Space</a></li>
+                <li>
+                    <a href="#what-this-section-established" aria-label="What this section established">What this section established</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><p>The <a href="/virtualization/foundations/">previous section</a> established what a VMM is and the classical condition under which one can be built efficiently. Real virtualization systems differ along several axes that are mostly <strong>independent of one another</strong>: a system&rsquo;s choice on one axis does not determine its choice on another. KVM is a hosted VMM with an unmodified guest interface; Xen began as a bare-metal VMM with a paravirtualized guest interface and now also supports unmodified guests. Conflating these axes — as the common textbook taxonomy of &ldquo;Type 1 vs. Type 2&rdquo; and &ldquo;Full vs. Para vs. Hardware-Assisted&rdquo; often does — obscures the actual design space.</p>
+<p>This section separates the axes explicitly. Four matter:</p>
+<ol>
+<li><strong>Placement</strong> — where the VMM sits in the software stack.</li>
+<li><strong>Guest interface</strong> — what the guest sees, and whether it has been modified to know it is virtualized.</li>
+<li><strong>Hardware support</strong> — what the CPU and platform provide to make virtualization efficient.</li>
+<li><strong>Isolation boundary</strong> — what mechanism enforces separation between guest and VMM.</li>
+</ol>
+<p>The first three are familiar from the classical literature. The fourth is included because it is the one axis on which essentially every traditional system makes the same choice, and the design space along it is largely unexplored.</p>
+<p>The purpose of this section is to <em>name</em> and <em>distinguish</em> the axes. The mechanisms by which each axis is implemented in practice — binary translation, EPT, virtio rings, and so on — are deferred to the <a href="/virtualization/cpu/">core mechanisms sections</a>.</p>
+<h2 id="placement">Placement<a hidden class="anchor" aria-hidden="true" href="#placement">#</a></h2>
+<p>The placement axis describes where the VMM executes relative to the rest of the software stack — in particular, whether it runs directly on the hardware or on top of an existing operating system.</p>
+<h3 id="type-1-bare-metal-vmm">Type 1: bare-metal VMM<a hidden class="anchor" aria-hidden="true" href="#type-1-bare-metal-vmm">#</a></h3>
+<p>A <strong>Type 1</strong> (or <strong>bare-metal</strong>) VMM runs directly on the physical hardware. It is the most-privileged software on the machine; there is no host OS beneath it.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">guest OS    guest OS    guest OS
+</span></span><span class="line"><span class="cl">   │           │           │
+</span></span><span class="line"><span class="cl">   └───────────┼───────────┘
+</span></span><span class="line"><span class="cl">               │
+</span></span><span class="line"><span class="cl">        VMM (bare-metal)
+</span></span><span class="line"><span class="cl">               │
+</span></span><span class="line"><span class="cl">          hardware
+</span></span></code></pre></div><p>Examples include Xen, VMware ESXi, and Microsoft Hyper-V. Bare-metal VMMs typically achieve lower overhead than hosted ones and minimize the trusted computing base (TCB) by excluding a general-purpose OS from the privileged path. The trade-off is that the VMM must implement, or delegate, all device drivers and platform management itself.</p>
+<p>In practice, most Type 1 VMMs delegate device handling to a privileged guest, often called a <em>driver domain</em> (Xen&rsquo;s <code>dom0</code>) or <em>parent partition</em> (Hyper-V), which runs a full OS and provides backend drivers to other guests. The VMM proper is small, but the system as a whole still depends on a full OS for I/O.</p>
+<h3 id="type-2-hosted-vmm">Type 2: hosted VMM<a hidden class="anchor" aria-hidden="true" href="#type-2-hosted-vmm">#</a></h3>
+<p>A <strong>Type 2</strong> (or <strong>hosted</strong>) VMM runs as a process or kernel module on top of a conventional host operating system. The host OS owns the hardware; the VMM borrows CPU and memory from it on the host&rsquo;s terms.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">guest OS    guest OS
+</span></span><span class="line"><span class="cl">   │           │
+</span></span><span class="line"><span class="cl">   └───────────┘
+</span></span><span class="line"><span class="cl">        │
+</span></span><span class="line"><span class="cl">       VMM ──┐
+</span></span><span class="line"><span class="cl">             │
+</span></span><span class="line"><span class="cl">          host OS
+</span></span><span class="line"><span class="cl">             │
+</span></span><span class="line"><span class="cl">          hardware
+</span></span></code></pre></div><p>Examples include VMware Workstation, VirtualBox, and KVM (where the Linux kernel is the host OS and KVM is a kernel module). Hosted VMMs reuse the host&rsquo;s device drivers, scheduler, and memory manager, which dramatically reduces implementation cost. The trade-offs are a larger TCB (the entire host kernel is trusted) and a longer path to hardware.</p>
+<h3 id="the-blurred-boundary">The blurred boundary<a hidden class="anchor" aria-hidden="true" href="#the-blurred-boundary">#</a></h3>
+<p>The Type 1 / Type 2 distinction is less crisp in modern systems than the classical taxonomy suggests. KVM is conventionally classified as Type 2 because it depends on Linux, but it uses hardware virtualization extensions to run guests at the same privilege level a Type 1 VMM would. Xen is conventionally classified as Type 1, but its dependence on <code>dom0</code> means a full Linux kernel is trusted in practice. The placement axis remains useful for describing the <em>architectural</em> relationship between VMM and OS, but it is a weaker predictor of performance and TCB size than it once was.</p>
+<h2 id="guest-interface">Guest Interface<a hidden class="anchor" aria-hidden="true" href="#guest-interface">#</a></h2>
+<p>The guest-interface axis describes what the guest sees: whether the virtual machine the VMM presents is <em>identical</em> to a real machine (so an unmodified OS runs on it) or whether the interface has been <em>modified</em> in ways the guest must be aware of.</p>
+<h3 id="full-virtualization">Full virtualization<a hidden class="anchor" aria-hidden="true" href="#full-virtualization">#</a></h3>
+<p>In <strong>full virtualization</strong>, the guest sees an interface indistinguishable from real hardware. The guest OS runs unmodified; it does not know it is virtualized. The advantage is compatibility — any OS that runs on the bare hardware runs in the VM. The cost is that the VMM must faithfully emulate every architectural detail the guest might observe, including legacy device interfaces, BIOS/firmware, and corner cases of CPU semantics.</p>
+<h3 id="paravirtualization">Paravirtualization<a hidden class="anchor" aria-hidden="true" href="#paravirtualization">#</a></h3>
+<p>In <strong>paravirtualization</strong>, the VMM exposes a <em>modified</em> interface in which the most expensive or non-virtualizable parts of the architecture are replaced by explicit calls into the VMM (<strong>hypercalls</strong>). The guest OS is ported to this interface — it knows it is virtualized and cooperates with the VMM.</p>
+<p>Paravirtualization was historically motivated by the x86 virtualization gap, but it is also used purely for <strong>performance</strong>: a paravirtual I/O interface (such as <code>virtio</code>) avoids the cost of emulating a real device by having the guest cooperate directly with the VMM through a shared ring buffer. The trade-off is that the guest OS must be modified, which precludes running closed-source operating systems unmodified and creates a maintenance burden as guest kernels evolve.</p>
+<h3 id="hybrid-interfaces-in-practice">Hybrid interfaces in practice<a hidden class="anchor" aria-hidden="true" href="#hybrid-interfaces-in-practice">#</a></h3>
+<p>Most modern systems are hybrids. A typical configuration runs an unmodified guest OS (full virtualization, made efficient by hardware assistance) but uses paravirtual drivers (<code>virtio-net</code>, <code>virtio-blk</code>) for performance-critical I/O. The guest is &ldquo;fully virtualized&rdquo; with respect to CPU and memory and &ldquo;paravirtualized&rdquo; with respect to I/O. The clean Full / Para dichotomy of the early literature has largely given way to this mixed model.</p>
+<h2 id="hardware-support">Hardware Support<a hidden class="anchor" aria-hidden="true" href="#hardware-support">#</a></h2>
+<p>The hardware-support axis describes what the underlying platform provides to make virtualization efficient — specifically, whether the CPU and platform offer features that close the Popek–Goldberg gap and reduce the cost of common virtualization operations.</p>
+<p>This section names the categories of hardware support a VMM may rely on; the mechanisms themselves are treated in the core-mechanisms sections.</p>
+<ul>
+<li><strong>No hardware support.</strong> The VMM closes the virtualizability gap entirely in software, by rewriting the guest&rsquo;s instruction stream or by modifying the guest. This is the regime in which the early VMware products and the original Xen operated.</li>
+<li><strong>CPU virtualization extensions</strong> (Intel VT-x, AMD-V). The CPU adds a new operating mode in which the VMM executes; sensitive operations by the guest cause a trap into the VMM, restoring the classical trap-and-emulate model on architectures that originally lacked it.</li>
+<li><strong>Memory virtualization extensions</strong> (Intel EPT, AMD NPT). The MMU adds a hardware-walked second translation layer, eliminating the need for the VMM to maintain shadow page tables.</li>
+<li><strong>I/O virtualization extensions</strong> (Intel VT-d / IOMMU, SR-IOV). The platform virtualizes DMA and lets physical devices safely present multiple virtual functions to the host, enabling near-native I/O without VMM mediation on every transaction.</li>
+</ul>
+<p>These categories are mostly cumulative in practice: a modern x86 VMM uses CPU, memory, and I/O extensions together. They are listed separately because they were introduced in stages, and a system may rely on some without the others (early hardware-assisted VMMs used VT-x but still maintained shadow page tables, for example).</p>
+<p>It is worth being precise about what hardware support does and does not provide. Hardware extensions make virtualization <em>efficient</em> — they reduce the cost of preserving the classical requirements. They do not, by themselves, make a system <em>secure</em>: a bug in the VMM remains a bug, and the trusted computing base of a hardware-assisted VMM is comparable to or larger than that of a software-only one. The axis here is performance and engineering complexity, not isolation strength.</p>
+<h2 id="isolation-boundary">Isolation Boundary<a hidden class="anchor" aria-hidden="true" href="#isolation-boundary">#</a></h2>
+<p>The previous three axes describe choices that every traditional VMM faces. The <strong>isolation boundary</strong> axis describes the <em>mechanism</em> by which the VMM is protected from its guests — and it is the axis on which the design space is, in current practice, almost entirely unexplored.</p>
+<p>In every traditional system surveyed in this chapter, the isolation boundary is a <strong>hardware privilege boundary</strong>: the VMM executes at a higher CPU privilege level than the guest, controls separate page tables that the guest cannot modify, and confines DMA-capable devices through hardware enforcement. These mechanisms differ in detail but share a common structure: <strong>isolation is achieved by hardware features that distinguish &ldquo;VMM memory&rdquo; from &ldquo;guest memory&rdquo; and &ldquo;VMM instructions&rdquo; from &ldquo;guest instructions&rdquo; at silicon level.</strong> The Popek–Goldberg condition is, in the end, a statement about hardware: it asks whether the hardware traps the right instructions at the right privilege level.</p>
+<p>Two non-traditional alternatives appear in the literature:</p>
+<ul>
+<li><strong>Software fault isolation (SFI).</strong> The guest&rsquo;s code is rewritten or verified before execution to guarantee it cannot access memory or invoke operations outside its allocation. The boundary is a property of the <em>code itself</em>, enforced by a verifier rather than by hardware. SFI has been used in browser sandboxes (NaCl) and OS extension mechanisms (BPF, eBPF) but not, historically, for full system virtualization.</li>
+<li><strong>Language-level isolation.</strong> The guest is written in a safe language, and the language&rsquo;s type system and runtime statically guarantee that a guest cannot forge a pointer, escape its allocated regions, or invoke privileged operations it has not been granted. The boundary is a property of the <em>type system</em> and is enforced at compile time. This is the approach taken by Singularity (Sing#), RedLeaf (Rust), and Theseus (Rust).</li>
+</ul>
+<p>A third alternative — neither pure software nor a pure language guarantee — has emerged in industry under the heading of <strong>confidential computing</strong>: AMD SEV (and SEV-SNP), Intel TDX, and ARM CCA. These mechanisms rest on hardware extensions but invert the traditional trust model: the VMM is treated as <em>untrusted</em>, and the hardware encrypts guest memory and CPU state so that even a compromised hypervisor cannot read or modify what runs inside the protected guest. Attestation replaces software-layer trust. This addresses tenant-vs.-VMM isolation (the dominant security concern in multi-tenant cloud), but it preserves and even widens the existing TCB-size and per-VM performance overheads. Confidential computing is therefore complementary to, not in competition with, language-level isolation: the two address different parts of the threat model.</p>
+<p>The rest of this survey treats the hardware boundary as the default — every traditional system uses it, and every cost analysis assumes it.</p>
+<h2 id="mapping-the-design-space">Mapping the Design Space<a hidden class="anchor" aria-hidden="true" href="#mapping-the-design-space">#</a></h2>
+<p>Because the four axes are independent, every concrete system can be described as a tuple of four choices. A few representative points in the space:</p>
+<table>
+  <thead>
+      <tr>
+          <th>System</th>
+          <th>Placement</th>
+          <th>Guest Interface</th>
+          <th>Hardware Support</th>
+          <th>Isolation Boundary</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>VMware Workstation (early, pre-2007)</td>
+          <td>Type 2</td>
+          <td>Full (binary translation)</td>
+          <td>None</td>
+          <td>Hardware (rings)</td>
+      </tr>
+      <tr>
+          <td>Xen (original, 2003)</td>
+          <td>Type 1</td>
+          <td>Paravirtual</td>
+          <td>None</td>
+          <td>Hardware (rings)</td>
+      </tr>
+      <tr>
+          <td>KVM (modern)</td>
+          <td>Type 2 (hosted in Linux)</td>
+          <td>Full</td>
+          <td>CPU + memory + I/O</td>
+          <td>Hardware (root/non-root)</td>
+      </tr>
+      <tr>
+          <td>Xen (modern)</td>
+          <td>Type 1</td>
+          <td>Full or Paravirtual</td>
+          <td>CPU + memory + I/O</td>
+          <td>Hardware (root/non-root)</td>
+      </tr>
+      <tr>
+          <td>Firecracker</td>
+          <td>Type 2 (hosted in Linux/KVM)</td>
+          <td>Full (minimal device set)</td>
+          <td>CPU + memory + I/O</td>
+          <td>Hardware (root/non-root)</td>
+      </tr>
+      <tr>
+          <td>RedLeaf</td>
+          <td>Type 1-like</td>
+          <td>Custom (Rust domains)</td>
+          <td>Minimal</td>
+          <td><strong>Language-level (Rust)</strong></td>
+      </tr>
+  </tbody>
+</table>
+<p>The table is not exhaustive but illustrates the point: the axes can be combined freely, and the most underexplored quadrant of the space is the fourth column — every traditional system makes the same choice there.</p>
+<h2 id="what-this-section-established">What this section established<a hidden class="anchor" aria-hidden="true" href="#what-this-section-established">#</a></h2>
+<p>The traditional virtualization design space has four largely-independent axes. The first three — placement, guest interface, hardware support — are the dimensions along which traditional systems differ from one another. The fourth — isolation boundary — is the one along which traditional systems are uniform, and the one most current research is trying to open up.</p>
+<p>The next section, <a href="/virtualization/vmm-architecture/">VMM Architecture</a>, takes the placement axis as its starting point and examines the <em>internal</em> structure of a VMM — the components every VMM contains and the architectural shapes (monolithic, hosted, disaggregated) into which they are organized. The core-mechanisms sections that follow then revisit the guest-interface and hardware-support axes in detail: <a href="/virtualization/cpu/">CPU</a> examines how full and paravirtual interfaces are realized and how CPU hardware extensions support them; <a href="/virtualization/memory/">Memory</a> and <a href="/virtualization/io/">I/O</a> do the same for their respective resources.</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="https://anekoique.github.io/tags/virtualization/">Virtualization</a></li>
+      <li><a href="https://anekoique.github.io/tags/hypervisor/">Hypervisor</a></li>
+      <li><a href="https://anekoique.github.io/tags/systems/">Systems</a></li>
+    </ul>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://anekoique.github.io/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

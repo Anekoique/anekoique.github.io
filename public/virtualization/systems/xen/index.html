@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Virtualization Systems — Xen | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="Virtualization, Hypervisor, Systems, Xen">
+<meta name="description" content="Canonical paravirtualizing Type-1 hypervisor. PV/HVM/PVH modes contrasted side by side across CPU, memory, I/O, cross-domain communication, and VM management. The disaggregated shape in production form.">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="https://anekoique.github.io/virtualization/systems/xen/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="https://anekoique.github.io/img/head.jpg">
+<link rel="apple-touch-icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="mask-icon" href="https://anekoique.github.io/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://anekoique.github.io/virtualization/systems/xen/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="https://anekoique.github.io/js/toc-sidebar.js" defer></script><script src="https://anekoique.github.io/js/starfield.js" defer></script><meta property="og:url" content="https://anekoique.github.io/virtualization/systems/xen/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="Virtualization Systems — Xen">
+  <meta property="og:description" content="Canonical paravirtualizing Type-1 hypervisor. PV/HVM/PVH modes contrasted side by side across CPU, memory, I/O, cross-domain communication, and VM management. The disaggregated shape in production form.">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="virtualization">
+    <meta property="article:published_time" content="2026-05-17T20:00:00+08:00">
+    <meta property="article:modified_time" content="2026-05-17T20:00:00+08:00">
+    <meta property="article:tag" content="Virtualization">
+    <meta property="article:tag" content="Hypervisor">
+    <meta property="article:tag" content="Systems">
+    <meta property="article:tag" content="Xen">
+      <meta property="og:see_also" content="https://anekoique.github.io/posts/virtualization-survey/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/history/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/foundations/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/taxonomy/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/vmm-architecture/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/cpu/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Virtualization Systems — Xen">
+<meta name="twitter:description" content="Canonical paravirtualizing Type-1 hypervisor. PV/HVM/PVH modes contrasted side by side across CPU, memory, I/O, cross-domain communication, and VM management. The disaggregated shape in production form.">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Virtualization Series",
+      "item": "https://anekoique.github.io/virtualization/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Virtualization Systems — Xen",
+      "item": "https://anekoique.github.io/virtualization/systems/xen/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Virtualization Systems — Xen",
+  "name": "Virtualization Systems — Xen",
+  "description": "Canonical paravirtualizing Type-1 hypervisor. PV/HVM/PVH modes contrasted side by side across CPU, memory, I/O, cross-domain communication, and VM management. The disaggregated shape in production form.",
+  "keywords": [
+    "Virtualization", "Hypervisor", "Systems", "Xen"
+  ],
+  "articleBody": "Xen is the canonical paravirtualizing Type-1 hypervisor, first published as Xen and the Art of Virtualization (Barham et al., SOSP 2003) at the University of Cambridge Computer Laboratory and continuously developed since then by the Xen Project under the Linux Foundation. The 2003 paper introduced the architectural vocabulary the survey reuses verbatim — dom0, domU, hypercalls, event channels, I/O rings, grant tables, the split-driver model. Modern Xen (the current xen.git tree, 4.22-pre tip at the time of writing) accreted full hardware-assisted virtualization (HVM, 2005), nested paging (EPT/NPT, 2007–2008), the PVH hybrid (2014), and a much larger control surface — but the design spine is the same.\nWhat makes Xen worth reading carefully is that it concretely demonstrates the §03 disaggregated shape in production form: the hypervisor is small and contains no device drivers, while a privileged guest (dom0) runs all device code and all control-plane logic. Every cross-domain interaction — guest↔hypervisor, guest↔dom0, guest↔guest — uses a well-designed three-mechanism stack (event channels for notification, I/O rings for transport, grant tables for authorization) that the rest of the industry, including modern virtio, descends from.\nThis note follows the survey’s chapter order, with each chapter explicitly contrasting the three guest modes Xen supports.\n§02 — Taxonomy: Xen at a glance Axis Xen Placement Type-1 bare-metal; runs in VMX root (Intel) / SVM host (AMD) / EL2 (ARM) / HS-mode (RISC-V) Guest interface Three coexisting modes: PV (paravirtualized, ported guest), HVM (fully virtualized, unmodified guest with virtual firmware), PVH (PV-style boot + HVM-style runtime — the modern default) Hardware support Originally none required (PV closed the x86 virtualizability gap by changing the guest); modern Xen depends on VT-x/SVM + EPT/NPT for HVM/PVH, optionally IOMMU (VT-d/AMD-Vi) for passthrough Isolation boundary Hardware (per-domain page tables + ring deprivileging for PV / VMX non-root for HVM/PVH); internally disaggregated — driver code lives in dom0 / driver domains, not in the hypervisor The defining structural choice is dom0 as a privileged Linux guest that owns all device drivers and the control plane. The hypervisor proper (xen/ in the tree) contains no PCI drivers, no filesystem, no network stack; it boots, builds dom0, then hands off everything else.\nModes at a glance, before the details Every claim below is mode-specific. The summary table:\nPV (2003) HVM (2005) PVH (2014) Designed for Cooperating Linux/BSD ports Unmodified guests (Windows, off-the-shelf Linux) Cooperating guests with hardware-assisted runtime Guest CPU mode Ring 1 (x86-32) / Ring 3 + separate PT (x86-64) — deprivileged VMX non-root VMX non-root Hardware required None — invented to avoid VT-x VT-x / AMD-V (+ EPT/NPT strongly preferred) VT-x / AMD-V + EPT/NPT (mandatory) Guest modification Substantial PV port None Small “PVH ABI” port MMU model Direct guest PTs, validated by hypercall Shadow PTs (legacy) or EPT/NPT (modern) EPT/NPT Boot ABI PV start_info page Virtual BIOS/UEFI → bootloader → kernel PVH start_info (direct kernel) Legacy device emulation None (PV split drivers only) Yes — qemu-dm process per domain None Modern status Legacy; some Linux distros still Universal for Windows and unmodified guests Default for dom0 and Linux domU Three rules to internalize:\nThe mode is fixed at domain creation (xl create reads type= from the config; the hypervisor records it in struct domain.guest_type). No runtime switch. All three modes can coexist on one hypervisor — the typical production picture is a PVH dom0, several PVH Linux domUs, and one HVM Windows domU, all simultaneously. dom0 is structurally required in all three modes — without it there is no control plane, no domain builder, no device backends. The hypervisor can boot without dom0 only to idle forever. §03 — Anatomy: what’s in the hypervisor, what’s in dom0 The §03 vocabulary places Xen in the disaggregated shape. The hypervisor binary itself is small (~600 KLoC total in the tree, but only ~50–100 KLoC on the hot path); the rest of “what feels like Xen” lives in dom0.\n┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐ │ dom0 (PVH Linux) │ │ domU-1 (HVM) │ │ domU-2 (PVH) │ │ ─────────────────── │ │ ─────────────────── │ │ ─────────────────── │ │ Linux kernel │ │ Windows kernel │ │ Linux kernel │ │ • drivers (real) │ │ • PV frontends │ │ • PV frontends │ │ • netback/blkback │ │ ───────────────── │ │ ───────────────── │ │ ───────────────── │ │ Windows userspace │ │ Linux userspace │ │ Linux userspace │ │ │ │ │ │ • xl / libxl │ │ │ │ │ │ • xenstored │ │ │ │ │ │ • qemu-dm[domU-1] │ │ │ │ │ └──────────┬──────────┘ └──────────┬──────────┘ └──────────┬──────────┘ │ │ │ │ domctl HC │ ioreq pages │ rings + │ │ (HVM device emul) │ grants + │ │ │ event chan ▼ ▼ ▼ ┌───────────────────────────────────────────────────────────────────────┐ │ Xen hypervisor (Ring −1 / VMX root / EL2) │ │ ───────────────────────────────────────────────────────────────────── │ │ scheduler │ MMU + EPT │ event channels │ grants │ hypercalls │ └───────────────────────────────────────────────────────────────────────┘ │ ▼ physical hardware Cross-domain wires (not shown above to keep the picture clean):\ndom0.netback/blkback ↔ domU-1.PV frontends and domU-2.PV frontends — rings + grants + event channels (PV split drivers) dom0.qemu-dm[domU-1] ↔ Xen ioreq pages ↔ domU-1 MMIO traps (HVM device emulation; only HVM domains need this) dom0.xl/libxl → Xen domctl hypercalls — domain lifecycle (create/start/stop/destroy) Anatomy mapping per §03:\n§03 component Xen location Control plane dom0-side xl/libxl tools issue domctl hypercalls; in-hypervisor dispatch at xen/common/domctl.c:275 vCPU model struct vcpu (xen/include/xen/sched.h:179); per-vCPU register state in arch-specific vcpu.arch Memory model Per-domain page tables; modern HVM/PVH uses hardware nested paging (EPT/NPT) — xen/arch/x86/mm/p2m*.c Device model Split across the boundary: frontend drivers in the guest (netfront, blkfront), backend drivers in dom0 (netback, blkback); HVM legacy emulation runs in dom0 user-space qemu-dm Interrupt/timer Per-domain event channels (xen/common/event_channel.c, 1822 LoC) — software interrupt mechanism, not a virtual APIC; HVM additionally exposes a virtual APIC Exit handler Per-arch trap entry; on x86 HVM: xen/arch/x86/hvm/vmx/vmx.c:4176 (vmx_vmexit_handler) and xen/arch/x86/hvm/hvm.c (architecture-generic HVM logic) The two big in-hypervisor data structures Almost everything in Xen revolves around struct domain and struct vcpu. Internalize their layout and the rest of the code becomes navigable.\nstruct domain (xen/include/xen/sched.h:315, ~several hundred fields):\nIdentity: domain_id, handle (UUID), guest_type (PV/HVM/PVH), creation flags vCPU list: vcpu array, max_vcpus Memory state: tot_pages / max_pages, page_list (every page assigned to this domain), xenpage_list (Xen-owned bookkeeping) Paging state: arch.paging substruct — shadow or HAP (hardware-assisted paging), mode-dependent Event channels: evtchn_port_ops (vtable for 2L or FIFO ABI), per-port arrays Grants: pointer to struct grant_table Scheduler state: opaque sched_priv (owned by active scheduler), cpupool pointer I/O permissions: iomem_caps, ioport_caps, irq_caps — bitmaps of which physical resources this domain may touch (empty except for dom0 and driver domains) Lifecycle: domain_create() at xen/common/domain.c:873 → domain_kill() at line 1305 → complete_domain_destroy(). Two-phase destroy because other CPUs may still hold pointers across an RCU grace period.\nstruct vcpu (xen/include/xen/sched.h:179):\nIdentity: vcpu_id, processor (current pCPU), back-pointer to domain Runstate: running / runnable / blocked / offline Architectural state: opaque arch substruct. For HVM: VMCS pointer, posted-interrupt descriptor. For PV: saved GPRs, segments, FPU, CR3 value Event-channel state: vcpu_info pointer (the shared-memory page with pending-event bitmap), virq_to_evtchn mapping Scheduling state: sched_unit (usually 1:1 with vCPU; Credit2 groups SMT siblings) The key invariant: vCPUs in a domain share the page-table root (it lives in domain.arch.paging), the way threads share an address space in a process. Two vCPUs in one domain see the same memory.\n§04 — CPU virtualization The CPU model is where the three modes diverge most sharply, because it’s where the relationship between guest and hardware is decided.\nHow the guest physically executes PV HVM PVH Hardware mode Deprivileged ring VMX non-root VMX non-root Sensitive ops x86 exception (#GP, #NM) VM-exit VM-exit Hot-path mediation Replaced with hypercalls at port time Trap-and-emulate (or pass through via VMCS controls) Same as HVM Xen entry path xen/arch/x86/traps.c:do_general_protection xen/arch/x86/hvm/vmx/vmx.c:4176 (vmx_vmexit_handler) Same as HVM Per-vCPU control block none in hardware VMCS (Intel) / VMCB (AMD) Same as HVM The PV path is “x86 exception → C handler in Xen → decode instruction → emulate against per-vCPU virtual state”. The HVM/PVH path is “VM-exit → VMCS EXIT_REASON field → dispatch in vmx_vmexit_handler’s switch → emulate or fix-up → vmresume”. Per-event cost is comparable on modern hardware; the number of events differs dramatically because PV guests batch operations into hypercalls, HVM/PVH guests trigger one exit per sensitive instruction unless the VMCS execution controls let it pass through.\nTrace 1: a guest changes its page-table root The same operation (switching process address spaces) in each mode.\nPV — the cooperative path. Linux’s Xen port does not execute mov %cr3 at all. Its pv_mmu_ops.write_cr3 calls HYPERVISOR_mmuext_op(MMUEXT_NEW_BASEPTR, mfn).\nguest kernel (ring 3 on x86-64) │ HYPERVISOR_mmuext_op(NEW_BASEPTR, mfn) │ syscall → Xen hypercall page ▼ Xen do_mmuext_op (xen/arch/x86/mm.c) │ validate: mfn is owned by this domain │ validate: mfn has type PGT_l4_page_table (pinned) │ update vcpu.arch.guest_table, write CR3 register ▼ return to guest at instruction after the hypercall One hypercall, no x86 exception, no shadow update. The validation is the load-bearing work — Xen confirms the guest isn’t trying to install a page-table root it doesn’t own.\nHVM — the hardware-assisted path. Unmodified Linux executes mov %eax, %cr3 directly. With EPT and no CR3-store exiting configured (the common modern case), this does not exit at all:\nguest kernel (VMX non-root) │ mov %eax, %cr3 ← executes natively │ guest's view of CR3 changes ▼ guest continues; EPT continues translating whatever guest-physical addresses the guest's new PTs produce If CR3-store exiting is configured (legacy shadow path, debugging), the path is:\nguest kernel (VMX non-root) │ mov %eax, %cr3 ▼ ──── VM-exit (saves full guest state to VMCS) ──── Xen vmx_vmexit_handler (vmx.c:4176) │ read VMCS.EXIT_REASON = CR_ACCESS │ read VMCS.EXIT_QUALIFICATION → which CR, R/W, src reg │ dispatch vmx_cr_access() │ hvm_set_cr3(new_value) │ ├─ updates virtual CR3 in vcpu.arch │ └─ rebuilds shadow PT (if shadow mode) or no-op (if HAP/EPT) │ ──── VMRESUME ──── ▼ guest resumes at instruction after the mov PVH uses EPT and VMX exactly the way HVM does; the CR3 path is mode-agnostic between HVM and PVH. PVH always uses HAP, so the “did this exit” answer is almost always no.\nRound-trip cost on modern hardware: a few hundred to a few thousand cycles, dominated by save/restore of architectural state across the VM-exit. The trajectory since first-gen VT-x has been to reduce the number of exits — modern guests on EPT + APICv + posted interrupts exit ~100× less per second than they did in 2006.\nvCPU control state, side by side PV HVM PVH Where guest GPRs live vcpu.arch.guest_context (Xen-defined struct) vcpu.arch.user_regs + auto-saved VMCS fields Same as HVM Hardware control structure None VMCS / VMCB, one per vCPU Same as HVM FPU state Lazy-saved into vcpu.arch.fpu_ctxt Saved by VMCS auto-save Same as HVM Initial state setup Hypervisor reads from XEN_DOMCTL_setvcpucontext payload, populates vcpu.arch.guest_context directly Same payload, populated into VMCS via hvm_set_* helpers Same as HVM Scheduling (mode-agnostic) The scheduler doesn’t care what mode a vCPU is in — same struct vcpu regardless. Five pluggable schedulers ship in-tree via the struct scheduler vtable in xen/common/sched/private.h:\nScheduler File / LoC Use case credit credit.c / 2315 Original SMP-aware proportional-share; legacy credit2 credit2.c / 4273 Modern default; NUMA-aware, hyperthread-aware null null.c / 1073 Static 1:1 vCPU↔pCPU pinning arinc653 arinc653.c / ~750 ARINC 653 time-partitioned, for avionics rt rt.c / ~1500 Real-time (deferrable server / EDF variants) Credit2 algorithm (design comment at credit2.c:75): each runnable vCPU has a weight (default 256, configurable per-domain). Credits burn as the vCPU runs at rate 1/weight, so heavy vCPUs burn slowly. Runqueue sorted by remaining credits, highest-credit vCPU runs next. When the next vCPU’s credits go ≤0, everyone gets a credit reset, preserving relative order.\nWhat turns this into 4273 lines: NUMA-aware migration, hyperthread awareness, multiple per-NUMA runqueues with periodic load-balancing, wake-up “tickling” (a newly-runnable vCPU shouldn’t wait for the next tick), and CPU pools (xen/common/sched/cpupool.c) — each pool has its own runqueues and its own scheduler instance, so different domains can run on different scheduling regimes on the same machine.\nnull is the interesting comparison: ~1000 LoC, holds a single mapping from vCPU to pCPU, do_schedule just returns “keep running who you were running”. No runqueue, no credits, no balancing. The same scheduler vtable Credit2 fills with 4273 lines.\n§05 — Memory virtualization The memory model is where the three modes are most different — three distinct mechanisms for translating guest-virtual to host-physical.\nThe translation pipeline by mode PV HVM (legacy) HVM (modern) / PVH Guest manages its own PTs? Yes, but every write validated by hypercall No — Xen maintains shadows Yes, walks them natively Translation path guest-virtual → host-physical (one walk, guest PT) guest-virtual → host-physical (one walk, shadow PT) guest-virtual → guest-physical (guest PT) → host-physical (EPT) Hardware support needed None VT-x VT-x + EPT/NPT Xen intervention per guest PT write Hypercall (validation) Shadow PT recompute on trap Never Code location xen/arch/x86/mm.c xen/arch/x86/mm/shadow/ xen/arch/x86/mm/p2m*.c PV: validated direct page tables This is the part most worth understanding mechanically — it’s unique to Xen and shows what’s possible without hardware support.\nSetup: every host-physical page has a type, tracked in a Xen-internal array (one entry per 4 KB page):\nPGT_none — ordinary data PGT_writable_page — writable mapping exists PGT_l1_page_table / _l2_ / _l3_ / _l4_page_table — used as a page table at the given level PGT_seg_desc_page — used as a GDT/LDT page Two invariants Xen enforces:\nA page typed as a page-table cannot also have writable mappings. To modify a PT page, the guest calls mmuext_op(MMUEXT_UNPIN) to drop its type, modifies it, calls MMUEXT_PIN_TABLE to re-establish. Every entry installed into a PT page is validated: does the entry reference a page this domain owns? Are permissions consistent (no writable mapping to a typed PT page)? Guest interface: __HYPERVISOR_mmu_update (hypercall #1, handler do_mmu_update in xen/arch/x86/mm.c). Guests submit batches of (pte_address, new_value) updates; Xen validates and applies each. Batching is essential — guests wait until they have TLB-flush-sized batches before submitting.\nThe validation discipline lives in xen/arch/x86/mm.c:get_page_type() — the function that embodies the entire mechanism. An afternoon with that function is what makes PV memory click.\nCost profile: zero per-translation overhead (MMU walks guest’s own PT directly); per-update hypercall cost, amortized by batching. On steady-state workloads PV typically beat first-generation VT-x + shadow because PV avoided per-PT-write VM-exits.\nWhy HVM doesn’t use this: HVM exists for unmodified guests, and an unmodified guest doesn’t issue mmu_update hypercalls — it just does mov %eax, (%rdi) to write a PTE. Without paravirtualization, the writes can’t be intercepted without shadow tables or hardware nested paging.\nHVM legacy: shadow page tables When HVM landed in 2005 for first-gen VT-x without nested paging, Xen had to maintain shadow tables — the mechanism §05 describes:\nMark guest PT pages read-only in the shadow tables (the ones hardware actually walks). Trap guest writes to PT pages, decode the write, propagate to the shadow. Keep shadows coherent on every guest update. Code in xen/arch/x86/mm/shadow/. High maintenance cost (per-write trap), substantial memory cost (one shadow tree per guest address space). Used today only as fallback when EPT/NPT is unavailable.\nHVM modern / PVH: nested paging (EPT/NPT) EPT (Intel, Nehalem 2008) and NPT (AMD, Barcelona 2007) add a hardware-walked second translation layer. Xen manages a per-domain p2m table in xen/arch/x86/mm/p2m*.c. The guest manages its own first-stage PTs natively; the MMU walks both stages.\nguest-virtual addr │ │ guest's own page table ← guest writes freely, no exit ▼ guest-physical addr │ │ EPT / NPT ← Xen-managed, hardware-walked ▼ host-physical addr The transformative consequence: the guest can manage its own page tables without Xen ever intervening. Guest PT writes, mov %eax, %cr3, invlpg — all execute natively. Xen is involved only when the second-stage mapping itself must change (memory hotplug, ballooning, dirty tracking for migration).\nCost profile: longer page-table walks (composed two-stage; worst case ~24 memory accesses for 4-level paging on a TLB miss), TLB pressure higher; mitigated by paging-structure caches and 2M/1G huge pages on the second stage.\nMemory allocation and overcommit Across all three modes, memory is statically partitioned at domain creation by default. The 2003 paper §3.3.4: “The initial memory allocation, or reservation, for each domain is specified at the time of its creation; memory is thus statically partitioned between domains, providing strong isolation.”\nThe allocation hypercall is XENMEM_populate_physmap (sub-op of __HYPERVISOR_memory_op #12, handler at xen/common/memory.c:1561): caller specifies how many pages to allocate and where to map them in the target domain’s guest-physical space.\nOvercommit mechanisms by mode:\nMechanism PV HVM PVH Notes Ballooning ✓ ✓ (via PV drivers in guest) ✓ Dominant production mechanism in all modes Maximum-allowable reservation ✓ ✓ ✓ tot_pages \u003c max_pages at creation Demand allocation via p2m fault n/a ✓ via EPT fault ✓ via EPT fault Requires a hardware-walked second stage Tmem (transcendent memory) (historical) (historical) (historical) Dropped in modern versions Live-migration dirty tracking log-dirty on shadow log-dirty on shadow or EPT log-dirty on EPT Same machinery as for migration Content-based page sharing Not in-tree Not in-tree Not in-tree Security concerns kept it out IOMMU integration (mode-agnostic) For DMA confinement on pass-through, Xen integrates VT-d / AMD-Vi. Each domain has an IOMMU page table mirroring its CPU-visible memory map. Code in xen/drivers/passthrough/{vtd,amd}/. The IOMMU sees guest-physical addresses and translates them to host-physical using its own per-domain table, regardless of how the CPU-side translation is implemented.\n§06 — I/O virtualization Xen’s I/O architecture is the cleanest example of the §03 disaggregated shape: the hypervisor contains no device drivers. All device work happens in dom0 (or in a dedicated driver domain), and domU guests reach devices through the §07 mechanism set.\nI/O approach availability by mode Approach PV HVM PVH Split drivers (frontend ↔ dom0 backend) ✓ (only option) ✓ (with Xen-aware PV drivers in guest) ✓ (default) Full device emulation via qemu-dm ✗ ✓ ✗ (deliberately omitted) Direct device assignment + IOMMU ✓ (with caveats) ✓ ✓ The asymmetry is intentional. PVH was created as “HVM without qemu-dm”. Unmodified Windows needs HVM because it needs emulated legacy devices; cooperating Linux needs none of that and runs as PVH with a much smaller TCB.\nApproach 1: split drivers — the original Xen I/O design A domU runs frontend drivers (xen-netfront, xen-blkfront); dom0 runs backend drivers (xen-netback, xen-blkback). They communicate via the §07 mechanisms (event channels + I/O rings + grant tables). The hypervisor itself never touches the data path.\nAvailable in all three modes. In PV/PVH the guest natively uses Xen-PV frontend drivers. In HVM the guest installs Xen PV drivers (Linux’s are upstream; Windows ships them separately) and they take over from emulated devices for the fast path.\nEnd-to-end trace below in §07.\nApproach 2: HVM device emulation via qemu-dm HVM-only. When the design committed to running unmodified guests in 2005, those guests expected to see a virtual BIOS, a virtual PCI bus, an emulated IDE controller, an emulated Realtek NIC. Xen’s solution: each HVM domU gets a dedicated qemu-dm process in dom0 user-space.\nThe flow on a guest MMIO access to an emulated device region:\nguest (HVM, VMX non-root) │ mov %eax, (mmio_addr) ← writes to a device register ▼ ──── EPT fault (region unmapped at stage 2) → VM-exit ──── Xen vmx_vmexit_handler │ exit reason: EPT_VIOLATION │ resolve mmio_addr to an ioreq server │ write request {addr, size, value, dir} into shared ioreq page │ block vCPU ▼ ──── signal qemu-dm via event channel ──── qemu-dm process (in dom0 user-space) │ wakes on event, reads ioreq page │ emulates device behavior (updates virtual NIC reg, queues packet, …) │ writes result back to ioreq page ▼ ──── signal Xen via event channel ──── Xen │ unblock vCPU, restore registers (write result into guest %eax for reads) │ ──── VMRESUME ──── ▼ guest resumes ioreq mechanism lives in xen/common/ioreq.c (Xen side) and tools/qemu-xen/hw/xen/xen-hvm.c (QEMU side). It’s structurally identical to KVM+QEMU (§03’s “hosted” shape) — the difference being that the QEMU process lives in a guest (dom0) rather than on a host kernel.\nThis is where most of the “why does Xen need dom0 so much” TCB pressure comes from: qemu-dm is QEMU, and QEMU is over a million lines of C.\nPV and PVH don’t go through this path because they have no emulated devices to begin with.\nApproach 3: direct device assignment with IOMMU Assign a physical device to one domain. The domain’s driver programs real registers; device DMAs into the domain’s memory directly; interrupts route to the domain’s vCPU via IOMMU interrupt remapping.\nAvailable in all three modes, with mode-specific complications:\nPV HVM PVH Pass through PCI devices ✓ (pciback in dom0, pcifront in domU) ✓ (VFIO-style, direct) ✓ MMIO BAR mapping Granted or directly mapped Direct in EPT Direct in EPT Interrupt delivery Via event channel (PIRQ) Posted interrupts (if supported) Posted interrupts SR-IOV virtual functions ✓ ✓ ✓ In production a typical HVM domU runs with: Xen PV split-driver network and block (fast path), emulated VGA via qemu-dm (boot and debug), possibly an SR-IOV NIC VF (latency-sensitive). PVH domUs skip the qemu-dm piece but otherwise look identical.\n§07 — Cross-domain communication This is the part of Xen the survey §07 was largely written about, and the part most independent of mode — the three mechanisms (event channels, grant tables, I/O rings) work identically across PV/HVM/PVH. What differs is how the guest invokes them.\nHypercall entry by mode PV HVM PVH Hypercall instruction int 0x82 (x86-32) / syscall to Xen hypercall page (x86-64) vmcall (Intel) / vmmcall (AMD) vmcall / vmmcall Mode transition x86 exception / syscall VM-exit VM-exit Argument passing Registers, conventional Registers, conventional Registers, conventional Hypercall numbers Same __HYPERVISOR_* table Same Same Once inside Xen, all hypercalls dispatch through the same do_* handlers regardless of mode. The mechanism differences are at the entry boundary, not the semantics.\nHypercall surface (~40 entries, hot path is a handful) Defined in xen/include/public/xen.h. The most architecturally important:\n# Name Purpose 1 mmu_update Batched page-table updates with validation (PV) 12 memory_op XENMEM_* — reservation, ballooning, populate-on-demand 20 grant_table_op GNTTABOP_* — inter-domain page grants 24 vcpu_op vCPU lifecycle (online/offline, register hooks) 26 mmuext_op Extended MMU ops (TLB flush, page-type pin/unpin) 29 sched_op Yield, block, shutdown, poll 32 event_channel_op EVTCHNOP_* — event channel management 33 physdev_op Physical device ops (driver domains / dom0 only) 34 hvm_op HVM-specific ops (set/get param, inject interrupt) 36 domctl Domain create/start/stop/destroy — dom0 only Hot-path hypercalls in steady state: event_channel_op_send, grant_table_op, sched_op_block, and (for PV only) mmu_update. Everything else is control plane.\nEvent channels — asynchronous notification A per-domain bitmap of pending-event bits with edge-triggered semantics. Code at xen/common/event_channel.c (1822 LoC). struct evtchn is allocated lazily into per-domain bucket arrays (two-level scheme).\nThe op set (do_event_channel_op at line 1354):\nEVTCHNOP_alloc_unbound — domain allocates an unbound port willing to be bound by a peer EVTCHNOP_bind_interdomain — bind to a remote domain’s unbound port (mutual rendezvous) EVTCHNOP_bind_virq — bind to a virtual IRQ (timer, debug, console) EVTCHNOP_bind_ipi — bind to an inter-vCPU IPI within the same domain EVTCHNOP_bind_pirq — bind to a real hardware IRQ (driver domains only) EVTCHNOP_send — fire an edge on a port (waking the peer) EVTCHNOP_unmask — re-enable a port after handling EVTCHNOP_init_control, expand_array — FIFO event-channel ABI v2 Event channels carry only notification, not data. They are how dom0’s backend tells a domU’s frontend “your I/O completed”, and how Xen tells the guest “a virq fired”.\nI/O rings — shared-memory transport A circular queue of descriptors in a page shared between two domains. Four pointers control synchronization:\nshared ring (mapped into both) ┌─────────────────────────────────────────────────┐ │ desc 0 │ desc 1 │ desc 2 │ ... │ desc N │ └────────┴────────┴────────┴─────┴────────────────┘ ▲ ▲ req_prod req_cons (producer writes, (consumer reads, shared) private to consumer) ▼ ▼ ... responses come back in the second half: rsp_prod (backend writes) rsp_cons (frontend reads) Only one side writes each index, so consumer/producer synchronization is lock-free. Templated by message type via macros in xen/include/public/io/ring.h; concrete formats in io/netif.h (network), io/blkif.h (block), io/console.h, etc.\nvirtio’s virtqueue is the direct lineal descendant of this design. If you understand Xen’s I/O rings you understand virtqueues, and vice versa.\nGrant tables — memory sharing with authorization The mechanism that ties rings to bulk data transfer. Code at xen/common/grant_table.c (4412 LoC, the largest file in xen/common/).\nA grant is a domain’s authorization for another specific domain to access specific pages with specific permissions, published into a per-domain grant table. The op set (do_grant_table_op at line 3639):\nGNTTABOP_map_grant_ref — recipient maps a granted page into its address space GNTTABOP_unmap_grant_ref — recipient releases the mapping GNTTABOP_unmap_and_replace — atomic unmap-and-substitute (page flipping) GNTTABOP_setup_table, set_version, get_version, query_size — table management GNTTABOP_transfer — give a page to another domain (ownership transfer) GNTTABOP_copy — hypervisor-mediated copy between two granted pages (avoids mapping) GNTTABOP_cache_flush — flush hypervisor cache state Properties grants provide: revocation (granter can withdraw), fine-grained authorization (each grant names a specific recipient), delegation control (grant can disallow re-granting). Essential when the parties don’t fully trust each other — exactly the setting of a disaggregated VMM where backend and domU share buffers but don’t trust each other’s correctness.\nGNTTABOP_copy is worth flagging: instead of granting access for the recipient to map, the granter says “the hypervisor may copy from this page to that page”, and the data movement happens entirely under hypervisor control. Used heavily on the network receive path where map/unmap-per-packet cost exceeds copy cost.\nThe three mechanisms composed: trace 2, a disk read end to end The clearest demonstration of how the §07 mechanism set actually works. Works identically in PV / HVM-with-PV-drivers / PVH.\nSetup once, at domain start (executed by xen-blkfront in domU and xen-blkback in dom0):\ndomU xen-blkfront dom0 xen-blkback ───────────────── ─────────────── 1. allocate ring page in domU memory 2. GNTTABOP grant access to ring → ref_R 3. EVTCHNOP_alloc_unbound → port_E 4. xenstore: write {ref_R, port_E} ◀──── xenstore watch fires 5. read {ref_R, port_E} 6. GNTTABOP_map_grant_ref(ref_R) → ring page mapped into dom0 7. EVTCHNOP_bind_interdomain(port_E) 8. xenstore: state = Connected Per read operation:\ndomU xen-blkfront dom0 xen-blkback physical disk ───────────────── ─────────────── ───────────── 1. read() arrives at frontend 2. alloc data-buffer page 3. GNTTABOP grant access → ref_D 4. write req desc {READ, sector, ref_D, len, id} to ring; bump req_prod 5. EVTCHNOP_send(port_E) ─────────────────────────▶ Xen sets pending bit on dom0's vcpu_info page 6. dom0 vCPU sees event, runs callback 7. backend worker wakes, reads req from ring 8. GNTTABOP_map_grant_ref(ref_D) → data page mapped into dom0 9. issue real I/O via Linux blk layer ────────────▶ DMA into granted page ◀──────────── completion irq 10. write rsp desc to ring, bump rsp_prod 11. GNTTABOP_unmap_grant_ref(ref_D) 12. EVTCHNOP_send(port_E) ◀──────────── Xen sets pending bit on domU's vcpu_info page 13. domU vCPU sees event, runs callback 14. read rsp from ring 15. read() returns to userspace Cost summary: 2 hypercalls (one send each direction), 2 grant operations, potentially zero copies (DMA into granted page), one scheduler hop each direction. The ring carried the data transfer; the event channel carried notification; the grant table provided authorization. Three mechanisms composing into exactly the right primitive for “domain A asks domain B to do work on a buffer”.\nIn practice it’s faster than this description suggests: frontends pre-grant a pool of pages and reuse them across many requests (amortizing grant cost); backends batch (one event drains all pending requests); notification suppression skips EVTCHNOP_send when both sides know the other is already polling.\n§08 — VM management Mostly mode-agnostic at the hypercall level (domctl semantics are uniform), but domain construction differs substantially because each mode has its own boot-state setup.\nxenstore — the system-wide config database A hierarchical key-value store accessible to every domain. The hypervisor itself doesn’t implement it — xenstored is a daemon in dom0 user-space. Domains talk to it via a shared page + event channel (the typical Xen pattern). It’s literally an in-memory tree of strings with permissions per node.\nWhat it’s used for:\nService discovery: “where’s my virtual block device backend?” → /local/domain//device/vbd/.../backend Frontend/backend handshake: both sides watch a common path, write their state (Initialising, InitWait, Initialised, Connected, Closing), wait for the other to advance Per-VM metadata: name, UUID, vCPU count, memory size — browsable as xenstore keys Live config changes: xl mem-set domain new-size writes to xenstore; the in-guest balloon driver watches the key and reacts Why it exists: dom0 and the hypervisor need a uniform way to expose configuration to guests that doesn’t require a hypercall ABI extension for every new piece of config. xenstore is the configuration ABI between dom0 userspace and domU kernels. You won’t see it in the hypervisor source — it’s purely a dom0-userspace mechanism — but xenstore-ls in any Xen guest dumps the tree.\nBoot, then dom0 Two-phase. Phase 1 is the hypervisor coming up; phase 2 is dom0 coming up; phase 3 (every subsequent domain) is dom0 creating domUs.\nPhase 1 — hypervisor brings up GRUB loads xen.gz + dom0 kernel + initrd (multiboot) │ ▼ xen/arch/x86/setup.c:__start_xen (line 1134) ├ relocate, switch to 64-bit ├ map Xen at top 64 MB of every address space ├ ACPI parse, SMP bring-up, NUMA discovery ├ scheduler init, event-channel init, grant init ├ IOMMU init ▼ Phase 2 — hypervisor builds dom0 xen/arch/x86/dom0_build.c:construct_dom0 (line 630) ├ allocate struct domain for id 0; mark as control + hardware ├ allocate vCPUs (default: all pCPUs) ├ allocate memory (default: all remaining host RAM) ├ build address space per dom0 mode (PV / PVH) ├ load dom0 kernel image from multiboot module ├ set vCPU 0 initial regs: %rip = entry, %rsi = start_info ▼ dom0 (Linux) boots ├ detects Xen, takes PV/PVH boot path ├ initializes drivers, filesystems, init/systemd ├ loads xenstored, xenconsoled └ loads xen-netback, xen-blkback (backend kernel modules) │ ▼ Phase 3 — dom0 creates domUs (per `xl create`) xl reads config; parses TOML/Python-config │ ▼ libxl in dom0 user-space: 1. xc_domain_create → XEN_DOMCTL_createdomain hypervisor allocates empty struct domain 2. XENMEM_populate_physmap → allocate guest memory 3. map domU memory into dom0 via /proc/xen/privcmd 4. read kernel image off disk; parse via xg_dom_*loader.c 5. write image into mapped memory 6. (HVM only) spawn qemu-dm process for device emulation 7. set up start-info / virtual firmware per mode 8. XEN_DOMCTL_setvcpucontext → install initial register state 9. XEN_DOMCTL_unpausedomain → hypervisor adds vCPUs to runqueue ▼ domU boots, frontend drivers connect to dom0 backends via §07 mechanisms The trade-off this captures: the hypervisor stays small (no kernel-image loader, no ELF parser, no disk I/O), and domain-building extends to new boot protocols (raw, ELF, bzImage, ARM zImage, PVH, multiboot) by adding loaders in user-space libxl. The cost is that libxl is itself substantial code running with privilege to create any domain.\nDomain construction by mode Step PV HVM PVH Mode flags on createdomain (no special flag) CDF_hvm + CDF_hap CDF_hvm + CDF_hap Image loading PV-bootloader (pygrub) / ELF with PV notes Place in low memory; SeaBIOS/OVMF firmware separately Place at PVH-spec address Address-space setup Build PV page tables in guest memory directly Set up EPT mapping (empty, fills on demand) Set up EPT mapping Boot info PV start_info page (memory map, console MFN, store MFN, initrd, cmdline) Virtual BIOS handles it from VMCS state PVH hvm_start_info struct Initial register state %rip = kernel entry, page-table root pointer, etc. %rip = firmware entry, %cr0/cr3/cr4 = initial %rip = kernel entry, %rsi = start_info qemu-dm n/a One process forked, registers as ioreq server n/a HVM construction is most complex (extra qemu-dm + firmware setup), PVH is simplest (direct kernel boot, no firmware, no qemu-dm), PV is in between (direct kernel boot but the PV-port boot ABI is involved).\nWhat dom0 itself runs as Era dom0 mode 2003–2013 Always PV (Xen had no other option for dom0) 2013–2018 PV default, HVM optional 2018–present PVH default (dom0=pvh on Xen command line), PV available for compatibility The modern dom0=pvh boot setting is what most production deployments use today. dom0 itself is also a domain that goes through the construction flow above — except that for dom0, the hypervisor runs the construction (construct_dom0), because there’s no libxl yet.\nManagement hypercall surface __HYPERVISOR_domctl (#36, dispatch at xen/common/domctl.c:275, 901 LoC total) is the lifecycle entry point. The op codes (XEN_DOMCTL_createdomain, pausedomain, unpausedomain, destroydomain, max_vcpus, setvcpuaffinity, scheduler_op, getdomaininfo, setvcpucontext, …) cover every action a control-plane tool needs.\n__HYPERVISOR_sysctl (#35) is the partner for system-wide operations (querying physinfo, listing all domains, cpupool management).\nAccess control: do_domctl checks is_control_domain(d) — only dom0 (or a domain with the matching XSM privilege) may invoke. This is the privileged-control-domain enforcement point.\nAll mode-agnostic — domctl semantics are the same for PV / HVM / PVH targets.\nLive migration §08’s pre-copy live migration discussion is essentially Live Migration of Virtual Machines (Clark et al., NSDI 2005), describing live migration in Xen. The mechanism still lives in tools/libs/guest/ (the save/restore library) and on the hypervisor side in the log-dirty page-table machinery in xen/arch/x86/mm/.\nsource host destination host ─────────── ──────────────── 1. xl migrate connects to destination's xl ◀──────── handshake ─────────▶ 2. enable log-dirty mode on migrating domain's second-stage PT (every guest write sets a dirty bit) 3. read all memory pages, stream to destination ──── memory pages ────▶ allocate, populate 4. query dirty bitmap; re-send dirty pages ──── dirty pages ─────▶ repeat until dirty rate falls below threshold 5. pause domain 6. send residual dirty pages + vCPU state + device state ──── final delta ─────▶ 7. restore vCPU state, unpause → domain resumes 8. destroy paused domain on source Mode-specific complications:\nPV HVM PVH Memory dirty tracking log-dirty on shadow log-dirty on shadow or EPT log-dirty on EPT vCPU state save vcpu.arch.guest_context VMCS state + HVM context VMCS state + HVM context Device state save Frontend state via xenstore qemu-dm device state + frontend state Frontend state only Special complications None qemu-dm state must serialize; some emulated devices can’t migrate cleanly None Migration difficulty Medium Hard Easy PVH is easiest to live-migrate, HVM is hardest (qemu-dm state is the problem child), PV is in between.\nConvergence corner cases match the §08 discussion: dirty rate exceeding copy rate (Xen rate-limits the guest’s CPU), pass-through device state (no good story; this is why migratable guests prefer virtio over pass-through), network attachment (destination must be on same L2 segment or use overlay networking).\nNested virtualization Xen can run as a guest on another hypervisor, and Xen can host another hypervisor as a guest. Both directions work; the hairy case is the latter.\nXen as L0 hosting L1 hypervisor: L1 (HVM mode) issues VMX instructions (VMREAD, VMWRITE, VMLAUNCH, VMRESUME); L0 intercepts and emulates, maintaining a shadow VMCS that represents the composed L0+L1 controls. When an L2 guest exits, hardware exits to L0; L0 decides whether L0 itself handles it or forwards to L1. Code in xen/arch/x86/hvm/nestedhvm.c and xen/arch/x86/hvm/vmx/vvmx.c.\nCost is substantial — every L2 exit potentially costs two L0 exits plus L1’s handler. Intel added VMCS Shadowing (Haswell, 2013) to make some L1 VMREAD/VMWRITE skip the L0 exit. Matters in production for cloud-in-cloud (AWS metal instances, CI inside VMs inside containers).\nARM and RISC-V — what changes Xen has a mature ARM port (xen/arch/arm/) and an in-progress RISC-V port (xen/arch/riscv/). Reading them clarifies what’s architectural versus what’s x86 quirk.\nARM:\nRuns at EL2 — the dedicated hypervisor exception level. No “ring -1” hack; the architecture was designed with virtualization in place from the start, satisfying Popek-Goldberg by construction. Stage-2 translation is the direct equivalent of EPT/NPT. No PV mode — there’s no virtualizability gap to paravirtualize around. ARM port supports HVM-equivalent and PVH-equivalent only. GIC virtualization: hardware support for guest interrupt delivery (GICv2 VIRT, GICv3+). PSCI: ARM’s standardized power-management hypercall interface used both for real power management and as the guest’s CPU-on/off interface. RISC-V (newer, started ~2022): mirrors ARM, uses H-extension’s HS-mode (equivalent of EL2) and G-stage paging (equivalent of Stage-2/EPT).\nThe implication for reading the codebase: many things that look like “Xen architecture” in xen/common/ are actually “Xen-x86 quirks” exported to common code. The ARM port had to clean up some abstractions; reading xen/arch/arm/ after xen/arch/x86/ clarifies which parts of the design are essential and which are historical.\nMode×chapter matrix The entire design space in one table, for reference:\nTopic PV HVM PVH §04 guest exec mode Deprivileged ring, x86 exceptions VMX non-root, VM-exits VMX non-root, VM-exits §04 sensitive-op handling Hypercalls (designed in) Emulate on exit Emulate on exit §04 hardware needed None VT-x/AMD-V VT-x/AMD-V + EPT/NPT §05 memory translation Direct PT, hypercall-validated Shadow PT or EPT/NPT EPT/NPT only §05 page tables managed by Guest, validated per update Xen (shadow) or guest (EPT) Guest natively §06 emulated devices None Yes (qemu-dm) None §06 PV split drivers Yes (only option) Yes (with PV drivers in guest) Yes (default) §06 device passthrough Yes Yes Yes §07 hypercall instruction int 0x82 / syscall vmcall / vmmcall vmcall / vmmcall §07 event channels ✓ ✓ ✓ §07 grant tables ✓ ✓ ✓ §07 I/O rings ✓ ✓ (via PV drivers) ✓ §08 construction complexity Medium (PV bootloader, PT setup) High (firmware + qemu-dm) Low (direct kernel) §08 dom0 default today Legacy n/a Modern default §08 live-migration difficulty Medium Hard (qemu-dm state) Easy TCB inclusion in dom0 Linux kernel Linux kernel + qemu-dm Linux kernel One-sentence summaries of the three modes:\nPV — guest is ported to call Xen via hypercalls; no hardware support needed; per-event cost low but guest must be ported. HVM — unmodified guest sees real-looking hardware via VT-x + per-VM qemu-dm; broadest compatibility, largest TCB. PVH — cooperating guest uses VT-x for execution but skips firmware and qemu-dm; modern default, smallest TCB among the three. Trajectory: PV was Xen’s answer to “x86 isn’t virtualizable”, HVM was the answer to “we need to run Windows”, PVH is the modern synthesis that takes hardware support for granted and discards the legacy compatibility tax.\nSource map For navigation when reading the tree:\nxen/ — the hypervisor binary ├── common/ │ ├── domain.c (2557 LoC) — domain_create at line 873, domain_kill at 1305 │ ├── domctl.c (901 LoC) — do_domctl at 275: control-plane HC dispatch │ ├── event_channel.c (1822 LoC) — do_event_channel_op at 1354 │ ├── grant_table.c (4412 LoC) — do_grant_table_op at 3639 │ ├── memory.c — XENMEM_populate_physmap at 1561 │ ├── ioreq.c — HVM device-emulation routing │ └── sched/ │ ├── core.c — scheduler-pluggable framework │ ├── credit.c (2315 LoC) — original credit scheduler │ ├── credit2.c (4273 LoC) — modern default (design comment at 75) │ ├── null.c (1073 LoC) — static pinning │ ├── arinc653.c — ARINC 653 time-partitioned │ ├── rt.c — real-time │ └── cpupool.c — pCPU pools with per-pool sched ├── arch/ │ ├── x86/ │ │ ├── setup.c — __start_xen at 1134; construct_dom0 call at 1122 │ │ ├── dom0_build.c — construct_dom0 at 630 │ │ ├── traps.c — PV exception entry, do_general_protection │ │ ├── mm.c (6572 LoC) — PV memory: do_mmu_update at 3984, get_page_type │ │ ├── mm/ │ │ │ ├── shadow/ — shadow page tables (legacy HVM) │ │ │ └── p2m*.c — second-stage (EPT/NPT) maps │ │ └── hvm/ │ │ ├── hvm.c (5463 LoC) — arch-generic HVM logic │ │ ├── vmx/vmx.c (5043 LoC) — Intel VMX path; vmx_vmexit_handler at 4176 │ │ └── svm/svm.c — AMD SVM path │ ├── arm/ — ARM port (EL2) │ ├── riscv/ — RISC-V port (H-extension) │ └── ppc/ — PowerPC port └── include/ ├── xen/sched.h — struct vcpu at 179, struct domain at 315 └── public/ — hypercall ABI (consumed by guests/tools) ├── xen.h — __HYPERVISOR_* numbers ├── event_channel.h — EVTCHNOP_* ├── grant_table.h — GNTTABOP_* ├── memory.h — XENMEM_* ├── domctl.h — XEN_DOMCTL_* └── io/ — I/O ring message formats ├── ring.h — ring macros ├── netif.h — netfront/netback messages └── blkif.h — blkfront/blkback messages tools/ — dom0 user-space (not in hypervisor TCB) ├── libs/light/ — libxl: high-level domain management ├── libs/guest/ — libxg: low-level loading and save/restore │ ├── xg_dom_*loader.c — boot-protocol-specific image loaders │ └── xg_sr_*.c — save/restore for live migration ├── libs/ctrl/ — libxc: hypercall wrappers ├── xl/ — the xl CLI └── qemu-xen/ — fork of QEMU as Xen's HVM device model ",
+  "wordCount" : "6638",
+  "inLanguage": "en",
+  "datePublished": "2026-05-17T20:00:00+08:00",
+  "dateModified": "2026-05-17T20:00:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://anekoique.github.io/virtualization/systems/xen/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://anekoique.github.io/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://anekoique.github.io/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://anekoique.github.io/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://anekoique.github.io/">Home</a>&nbsp;»&nbsp;<a href="https://anekoique.github.io/virtualization/">Virtualization Series</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Virtualization Systems — Xen
+    </h1>
+    <div class="post-meta"><span title='2026-05-17 20:00:00 +0800 CST'>2026-05-17</span>&nbsp;·&nbsp;32 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#02--taxonomy-xen-at-a-glance" aria-label="§02 — Taxonomy: Xen at a glance">§02 — Taxonomy: Xen at a glance</a></li>
+                <li>
+                    <a href="#modes-at-a-glance-before-the-details" aria-label="Modes at a glance, before the details">Modes at a glance, before the details</a></li>
+                <li>
+                    <a href="#03--anatomy-whats-in-the-hypervisor-whats-in-dom0" aria-label="§03 — Anatomy: what&rsquo;s in the hypervisor, what&rsquo;s in dom0">§03 — Anatomy: what&rsquo;s in the hypervisor, what&rsquo;s in dom0</a><ul>
+                    
+                <li>
+                    <a href="#the-two-big-in-hypervisor-data-structures" aria-label="The two big in-hypervisor data structures">The two big in-hypervisor data structures</a></li></ul>
+                </li>
+                <li>
+                    <a href="#04--cpu-virtualization" aria-label="§04 — CPU virtualization">§04 — CPU virtualization</a><ul>
+                    
+                <li>
+                    <a href="#how-the-guest-physically-executes" aria-label="How the guest physically executes">How the guest physically executes</a></li>
+                <li>
+                    <a href="#trace-1-a-guest-changes-its-page-table-root" aria-label="Trace 1: a guest changes its page-table root">Trace 1: a guest changes its page-table root</a></li>
+                <li>
+                    <a href="#vcpu-control-state-side-by-side" aria-label="vCPU control state, side by side">vCPU control state, side by side</a></li>
+                <li>
+                    <a href="#scheduling-mode-agnostic" aria-label="Scheduling (mode-agnostic)">Scheduling (mode-agnostic)</a></li></ul>
+                </li>
+                <li>
+                    <a href="#05--memory-virtualization" aria-label="§05 — Memory virtualization">§05 — Memory virtualization</a><ul>
+                    
+                <li>
+                    <a href="#the-translation-pipeline-by-mode" aria-label="The translation pipeline by mode">The translation pipeline by mode</a></li>
+                <li>
+                    <a href="#pv-validated-direct-page-tables" aria-label="PV: validated direct page tables">PV: validated direct page tables</a></li>
+                <li>
+                    <a href="#hvm-legacy-shadow-page-tables" aria-label="HVM legacy: shadow page tables">HVM legacy: shadow page tables</a></li>
+                <li>
+                    <a href="#hvm-modern--pvh-nested-paging-eptnpt" aria-label="HVM modern / PVH: nested paging (EPT/NPT)">HVM modern / PVH: nested paging (EPT/NPT)</a></li>
+                <li>
+                    <a href="#memory-allocation-and-overcommit" aria-label="Memory allocation and overcommit">Memory allocation and overcommit</a></li>
+                <li>
+                    <a href="#iommu-integration-mode-agnostic" aria-label="IOMMU integration (mode-agnostic)">IOMMU integration (mode-agnostic)</a></li></ul>
+                </li>
+                <li>
+                    <a href="#06--io-virtualization" aria-label="§06 — I/O virtualization">§06 — I/O virtualization</a><ul>
+                    
+                <li>
+                    <a href="#io-approach-availability-by-mode" aria-label="I/O approach availability by mode">I/O approach availability by mode</a></li>
+                <li>
+                    <a href="#approach-1-split-drivers--the-original-xen-io-design" aria-label="Approach 1: split drivers — the original Xen I/O design">Approach 1: split drivers — the original Xen I/O design</a></li>
+                <li>
+                    <a href="#approach-2-hvm-device-emulation-via-qemu-dm" aria-label="Approach 2: HVM device emulation via qemu-dm">Approach 2: HVM device emulation via qemu-dm</a></li>
+                <li>
+                    <a href="#approach-3-direct-device-assignment-with-iommu" aria-label="Approach 3: direct device assignment with IOMMU">Approach 3: direct device assignment with IOMMU</a></li></ul>
+                </li>
+                <li>
+                    <a href="#07--cross-domain-communication" aria-label="§07 — Cross-domain communication">§07 — Cross-domain communication</a><ul>
+                    
+                <li>
+                    <a href="#hypercall-entry-by-mode" aria-label="Hypercall entry by mode">Hypercall entry by mode</a></li>
+                <li>
+                    <a href="#hypercall-surface-40-entries-hot-path-is-a-handful" aria-label="Hypercall surface (~40 entries, hot path is a handful)">Hypercall surface (~40 entries, hot path is a handful)</a></li>
+                <li>
+                    <a href="#event-channels--asynchronous-notification" aria-label="Event channels — asynchronous notification">Event channels — asynchronous notification</a></li>
+                <li>
+                    <a href="#io-rings--shared-memory-transport" aria-label="I/O rings — shared-memory transport">I/O rings — shared-memory transport</a></li>
+                <li>
+                    <a href="#grant-tables--memory-sharing-with-authorization" aria-label="Grant tables — memory sharing with authorization">Grant tables — memory sharing with authorization</a></li>
+                <li>
+                    <a href="#the-three-mechanisms-composed-trace-2-a-disk-read-end-to-end" aria-label="The three mechanisms composed: trace 2, a disk read end to end">The three mechanisms composed: trace 2, a disk read end to end</a></li></ul>
+                </li>
+                <li>
+                    <a href="#08--vm-management" aria-label="§08 — VM management">§08 — VM management</a><ul>
+                    
+                <li>
+                    <a href="#xenstore--the-system-wide-config-database" aria-label="xenstore — the system-wide config database">xenstore — the system-wide config database</a></li>
+                <li>
+                    <a href="#boot-then-dom0" aria-label="Boot, then dom0">Boot, then dom0</a></li>
+                <li>
+                    <a href="#domain-construction-by-mode" aria-label="Domain construction by mode">Domain construction by mode</a></li>
+                <li>
+                    <a href="#what-dom0-itself-runs-as" aria-label="What dom0 itself runs as">What dom0 itself runs as</a></li>
+                <li>
+                    <a href="#management-hypercall-surface" aria-label="Management hypercall surface">Management hypercall surface</a></li>
+                <li>
+                    <a href="#live-migration" aria-label="Live migration">Live migration</a></li>
+                <li>
+                    <a href="#nested-virtualization" aria-label="Nested virtualization">Nested virtualization</a></li>
+                <li>
+                    <a href="#arm-and-risc-v--what-changes" aria-label="ARM and RISC-V — what changes">ARM and RISC-V — what changes</a></li></ul>
+                </li>
+                <li>
+                    <a href="#modechapter-matrix" aria-label="Mode×chapter matrix">Mode×chapter matrix</a></li>
+                <li>
+                    <a href="#source-map" aria-label="Source map">Source map</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><p>Xen is the canonical paravirtualizing Type-1 hypervisor, first published as <a href="https://dl.acm.org/doi/10.1145/944220.944235"><em>Xen and the Art of Virtualization</em></a> (Barham et al., SOSP 2003) at the University of Cambridge Computer Laboratory and continuously developed since then by the Xen Project under the Linux Foundation. The 2003 paper introduced the architectural vocabulary the survey reuses verbatim — <code>dom0</code>, <code>domU</code>, hypercalls, event channels, I/O rings, grant tables, the split-driver model. Modern Xen (the current <code>xen.git</code> tree, 4.22-pre tip at the time of writing) accreted full hardware-assisted virtualization (<code>HVM</code>, 2005), nested paging (EPT/NPT, 2007–2008), the PVH hybrid (2014), and a much larger control surface — but the design spine is the same.</p>
+<p>What makes Xen worth reading carefully is that it concretely demonstrates the <a href="/virtualization/vmm-architecture/">§03</a> <em>disaggregated</em> shape in production form: the hypervisor is small and contains no device drivers, while a privileged guest (<code>dom0</code>) runs all device code and all control-plane logic. Every cross-domain interaction — guest↔hypervisor, guest↔dom0, guest↔guest — uses a well-designed three-mechanism stack (event channels for notification, I/O rings for transport, grant tables for authorization) that the rest of the industry, including modern virtio, descends from.</p>
+<p>This note follows the survey&rsquo;s chapter order, with each chapter explicitly contrasting the three guest modes Xen supports.</p>
+<h2 id="02--taxonomy-xen-at-a-glance">§02 — Taxonomy: Xen at a glance<a hidden class="anchor" aria-hidden="true" href="#02--taxonomy-xen-at-a-glance">#</a></h2>
+<table>
+  <thead>
+      <tr>
+          <th>Axis</th>
+          <th>Xen</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Placement</td>
+          <td>Type-1 bare-metal; runs in VMX root (Intel) / SVM host (AMD) / EL2 (ARM) / HS-mode (RISC-V)</td>
+      </tr>
+      <tr>
+          <td>Guest interface</td>
+          <td>Three coexisting modes: <strong>PV</strong> (paravirtualized, ported guest), <strong>HVM</strong> (fully virtualized, unmodified guest with virtual firmware), <strong>PVH</strong> (PV-style boot + HVM-style runtime — the modern default)</td>
+      </tr>
+      <tr>
+          <td>Hardware support</td>
+          <td>Originally none required (PV closed the x86 virtualizability gap by changing the guest); modern Xen depends on VT-x/SVM + EPT/NPT for HVM/PVH, optionally IOMMU (VT-d/AMD-Vi) for passthrough</td>
+      </tr>
+      <tr>
+          <td>Isolation boundary</td>
+          <td>Hardware (per-domain page tables + ring deprivileging for PV / VMX non-root for HVM/PVH); internally <em>disaggregated</em> — driver code lives in <code>dom0</code> / driver domains, not in the hypervisor</td>
+      </tr>
+  </tbody>
+</table>
+<p>The defining structural choice is <strong>dom0 as a privileged Linux guest that owns all device drivers and the control plane</strong>. The hypervisor proper (<code>xen/</code> in the tree) contains no PCI drivers, no filesystem, no network stack; it boots, builds <code>dom0</code>, then hands off everything else.</p>
+<h2 id="modes-at-a-glance-before-the-details">Modes at a glance, before the details<a hidden class="anchor" aria-hidden="true" href="#modes-at-a-glance-before-the-details">#</a></h2>
+<p>Every claim below is mode-specific. The summary table:</p>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th><strong>PV</strong> (2003)</th>
+          <th><strong>HVM</strong> (2005)</th>
+          <th><strong>PVH</strong> (2014)</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Designed for</td>
+          <td>Cooperating Linux/BSD ports</td>
+          <td>Unmodified guests (Windows, off-the-shelf Linux)</td>
+          <td>Cooperating guests with hardware-assisted runtime</td>
+      </tr>
+      <tr>
+          <td>Guest CPU mode</td>
+          <td>Ring 1 (x86-32) / Ring 3 + separate PT (x86-64) — deprivileged</td>
+          <td>VMX non-root</td>
+          <td>VMX non-root</td>
+      </tr>
+      <tr>
+          <td>Hardware required</td>
+          <td>None — invented to avoid VT-x</td>
+          <td>VT-x / AMD-V (+ EPT/NPT strongly preferred)</td>
+          <td>VT-x / AMD-V + EPT/NPT (mandatory)</td>
+      </tr>
+      <tr>
+          <td>Guest modification</td>
+          <td>Substantial PV port</td>
+          <td>None</td>
+          <td>Small &ldquo;PVH ABI&rdquo; port</td>
+      </tr>
+      <tr>
+          <td>MMU model</td>
+          <td>Direct guest PTs, validated by hypercall</td>
+          <td>Shadow PTs (legacy) or EPT/NPT (modern)</td>
+          <td>EPT/NPT</td>
+      </tr>
+      <tr>
+          <td>Boot ABI</td>
+          <td>PV <code>start_info</code> page</td>
+          <td>Virtual BIOS/UEFI → bootloader → kernel</td>
+          <td>PVH <code>start_info</code> (direct kernel)</td>
+      </tr>
+      <tr>
+          <td>Legacy device emulation</td>
+          <td>None (PV split drivers only)</td>
+          <td>Yes — <code>qemu-dm</code> process per domain</td>
+          <td>None</td>
+      </tr>
+      <tr>
+          <td>Modern status</td>
+          <td>Legacy; some Linux distros still</td>
+          <td>Universal for Windows and unmodified guests</td>
+          <td><strong>Default for dom0 and Linux domU</strong></td>
+      </tr>
+  </tbody>
+</table>
+<p>Three rules to internalize:</p>
+<ol>
+<li><strong>The mode is fixed at domain creation</strong> (<code>xl create</code> reads <code>type=</code> from the config; the hypervisor records it in <code>struct domain.guest_type</code>). No runtime switch.</li>
+<li><strong>All three modes can coexist</strong> on one hypervisor — the typical production picture is a PVH <code>dom0</code>, several PVH Linux <code>domU</code>s, and one HVM Windows <code>domU</code>, all simultaneously.</li>
+<li><strong>dom0 is structurally required</strong> in all three modes — without it there is no control plane, no domain builder, no device backends. The hypervisor can boot without <code>dom0</code> only to idle forever.</li>
+</ol>
+<h2 id="03--anatomy-whats-in-the-hypervisor-whats-in-dom0">§03 — Anatomy: what&rsquo;s in the hypervisor, what&rsquo;s in dom0<a hidden class="anchor" aria-hidden="true" href="#03--anatomy-whats-in-the-hypervisor-whats-in-dom0">#</a></h2>
+<p>The <a href="/virtualization/vmm-architecture/">§03</a> vocabulary places Xen in the <strong>disaggregated</strong> shape. The hypervisor binary itself is small (~600 KLoC total in the tree, but only ~50–100 KLoC on the hot path); the rest of &ldquo;what feels like Xen&rdquo; lives in <code>dom0</code>.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">  ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
+</span></span><span class="line"><span class="cl">  │  dom0  (PVH Linux)  │  │  domU-1  (HVM)      │  │  domU-2  (PVH)      │
+</span></span><span class="line"><span class="cl">  │ ─────────────────── │  │ ─────────────────── │  │ ─────────────────── │
+</span></span><span class="line"><span class="cl">  │  Linux kernel       │  │  Windows kernel     │  │  Linux kernel       │
+</span></span><span class="line"><span class="cl">  │   • drivers (real)  │  │   • PV frontends    │  │   • PV frontends    │
+</span></span><span class="line"><span class="cl">  │   • netback/blkback │  │  ─────────────────  │  │  ─────────────────  │
+</span></span><span class="line"><span class="cl">  │  ─────────────────  │  │  Windows userspace  │  │  Linux userspace    │
+</span></span><span class="line"><span class="cl">  │  Linux userspace    │  │                     │  │                     │
+</span></span><span class="line"><span class="cl">  │   • xl / libxl      │  │                     │  │                     │
+</span></span><span class="line"><span class="cl">  │   • xenstored       │  │                     │  │                     │
+</span></span><span class="line"><span class="cl">  │   • qemu-dm[domU-1] │  │                     │  │                     │
+</span></span><span class="line"><span class="cl">  └──────────┬──────────┘  └──────────┬──────────┘  └──────────┬──────────┘
+</span></span><span class="line"><span class="cl">             │                        │                        │
+</span></span><span class="line"><span class="cl">             │ domctl HC              │ ioreq pages            │ rings +
+</span></span><span class="line"><span class="cl">             │                        │ (HVM device emul)      │ grants +
+</span></span><span class="line"><span class="cl">             │                        │                        │ event chan
+</span></span><span class="line"><span class="cl">             ▼                        ▼                        ▼
+</span></span><span class="line"><span class="cl">  ┌───────────────────────────────────────────────────────────────────────┐
+</span></span><span class="line"><span class="cl">  │            Xen hypervisor   (Ring −1 / VMX root / EL2)                │
+</span></span><span class="line"><span class="cl">  │ ───────────────────────────────────────────────────────────────────── │
+</span></span><span class="line"><span class="cl">  │  scheduler  │  MMU + EPT  │  event channels  │  grants  │  hypercalls │
+</span></span><span class="line"><span class="cl">  └───────────────────────────────────────────────────────────────────────┘
+</span></span><span class="line"><span class="cl">                                     │
+</span></span><span class="line"><span class="cl">                                     ▼
+</span></span><span class="line"><span class="cl">                              physical hardware
+</span></span></code></pre></div><p>Cross-domain wires (not shown above to keep the picture clean):</p>
+<ul>
+<li><code>dom0.netback/blkback</code>  ↔  <code>domU-1.PV frontends</code> and <code>domU-2.PV frontends</code> — rings + grants + event channels (PV split drivers)</li>
+<li><code>dom0.qemu-dm[domU-1]</code>  ↔  Xen ioreq pages  ↔  <code>domU-1</code> MMIO traps (HVM device emulation; only HVM domains need this)</li>
+<li><code>dom0.xl/libxl</code>  →  Xen <code>domctl</code> hypercalls — domain lifecycle (create/start/stop/destroy)</li>
+</ul>
+<p>Anatomy mapping per <a href="/virtualization/vmm-architecture/">§03</a>:</p>
+<table>
+  <thead>
+      <tr>
+          <th>§03 component</th>
+          <th>Xen location</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Control plane</td>
+          <td><code>dom0</code>-side <code>xl</code>/<code>libxl</code> tools issue <code>domctl</code> hypercalls; in-hypervisor dispatch at <code>xen/common/domctl.c:275</code></td>
+      </tr>
+      <tr>
+          <td>vCPU model</td>
+          <td><code>struct vcpu</code> (<code>xen/include/xen/sched.h:179</code>); per-vCPU register state in arch-specific <code>vcpu.arch</code></td>
+      </tr>
+      <tr>
+          <td>Memory model</td>
+          <td>Per-domain page tables; modern HVM/PVH uses hardware nested paging (EPT/NPT) — <code>xen/arch/x86/mm/p2m*.c</code></td>
+      </tr>
+      <tr>
+          <td>Device model</td>
+          <td>Split across the boundary: <strong>frontend drivers</strong> in the guest (<code>netfront</code>, <code>blkfront</code>), <strong>backend drivers</strong> in <code>dom0</code> (<code>netback</code>, <code>blkback</code>); HVM legacy emulation runs in <code>dom0</code> user-space <code>qemu-dm</code></td>
+      </tr>
+      <tr>
+          <td>Interrupt/timer</td>
+          <td>Per-domain event channels (<code>xen/common/event_channel.c</code>, 1822 LoC) — software interrupt mechanism, not a virtual APIC; HVM additionally exposes a virtual APIC</td>
+      </tr>
+      <tr>
+          <td>Exit handler</td>
+          <td>Per-arch trap entry; on x86 HVM: <code>xen/arch/x86/hvm/vmx/vmx.c:4176</code> (<code>vmx_vmexit_handler</code>) and <code>xen/arch/x86/hvm/hvm.c</code> (architecture-generic HVM logic)</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="the-two-big-in-hypervisor-data-structures">The two big in-hypervisor data structures<a hidden class="anchor" aria-hidden="true" href="#the-two-big-in-hypervisor-data-structures">#</a></h3>
+<p>Almost everything in Xen revolves around <code>struct domain</code> and <code>struct vcpu</code>. Internalize their layout and the rest of the code becomes navigable.</p>
+<p><strong><code>struct domain</code></strong> (<code>xen/include/xen/sched.h:315</code>, ~several hundred fields):</p>
+<ul>
+<li><strong>Identity</strong>: <code>domain_id</code>, <code>handle</code> (UUID), <code>guest_type</code> (PV/HVM/PVH), creation flags</li>
+<li><strong>vCPU list</strong>: <code>vcpu</code> array, <code>max_vcpus</code></li>
+<li><strong>Memory state</strong>: <code>tot_pages</code> / <code>max_pages</code>, <code>page_list</code> (every page assigned to this domain), <code>xenpage_list</code> (Xen-owned bookkeeping)</li>
+<li><strong>Paging state</strong>: <code>arch.paging</code> substruct — shadow or HAP (hardware-assisted paging), mode-dependent</li>
+<li><strong>Event channels</strong>: <code>evtchn_port_ops</code> (vtable for 2L or FIFO ABI), per-port arrays</li>
+<li><strong>Grants</strong>: pointer to <code>struct grant_table</code></li>
+<li><strong>Scheduler state</strong>: opaque <code>sched_priv</code> (owned by active scheduler), <code>cpupool</code> pointer</li>
+<li><strong>I/O permissions</strong>: <code>iomem_caps</code>, <code>ioport_caps</code>, <code>irq_caps</code> — bitmaps of which physical resources this domain may touch (empty except for <code>dom0</code> and driver domains)</li>
+</ul>
+<p>Lifecycle: <code>domain_create()</code> at <code>xen/common/domain.c:873</code> → <code>domain_kill()</code> at line 1305 → <code>complete_domain_destroy()</code>. Two-phase destroy because other CPUs may still hold pointers across an RCU grace period.</p>
+<p><strong><code>struct vcpu</code></strong> (<code>xen/include/xen/sched.h:179</code>):</p>
+<ul>
+<li><strong>Identity</strong>: <code>vcpu_id</code>, <code>processor</code> (current pCPU), back-pointer to <code>domain</code></li>
+<li><strong>Runstate</strong>: running / runnable / blocked / offline</li>
+<li><strong>Architectural state</strong>: opaque <code>arch</code> substruct. For HVM: VMCS pointer, posted-interrupt descriptor. For PV: saved GPRs, segments, FPU, CR3 value</li>
+<li><strong>Event-channel state</strong>: <code>vcpu_info</code> pointer (the shared-memory page with pending-event bitmap), <code>virq_to_evtchn</code> mapping</li>
+<li><strong>Scheduling state</strong>: <code>sched_unit</code> (usually 1:1 with vCPU; Credit2 groups SMT siblings)</li>
+</ul>
+<p>The key invariant: <strong>vCPUs in a domain share the page-table root</strong> (it lives in <code>domain.arch.paging</code>), the way threads share an address space in a process. Two vCPUs in one domain see the same memory.</p>
+<hr>
+<h2 id="04--cpu-virtualization">§04 — CPU virtualization<a hidden class="anchor" aria-hidden="true" href="#04--cpu-virtualization">#</a></h2>
+<p>The CPU model is where the three modes diverge most sharply, because it&rsquo;s where the relationship between guest and hardware is decided.</p>
+<h3 id="how-the-guest-physically-executes">How the guest physically executes<a hidden class="anchor" aria-hidden="true" href="#how-the-guest-physically-executes">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Hardware mode</td>
+          <td>Deprivileged ring</td>
+          <td>VMX non-root</td>
+          <td>VMX non-root</td>
+      </tr>
+      <tr>
+          <td>Sensitive ops</td>
+          <td>x86 exception (#GP, #NM)</td>
+          <td>VM-exit</td>
+          <td>VM-exit</td>
+      </tr>
+      <tr>
+          <td>Hot-path mediation</td>
+          <td>Replaced with hypercalls at port time</td>
+          <td>Trap-and-emulate (or pass through via VMCS controls)</td>
+          <td>Same as HVM</td>
+      </tr>
+      <tr>
+          <td>Xen entry path</td>
+          <td><code>xen/arch/x86/traps.c:do_general_protection</code></td>
+          <td><code>xen/arch/x86/hvm/vmx/vmx.c:4176</code> (<code>vmx_vmexit_handler</code>)</td>
+          <td>Same as HVM</td>
+      </tr>
+      <tr>
+          <td>Per-vCPU control block</td>
+          <td>none in hardware</td>
+          <td>VMCS (Intel) / VMCB (AMD)</td>
+          <td>Same as HVM</td>
+      </tr>
+  </tbody>
+</table>
+<p>The PV path is &ldquo;x86 exception → C handler in Xen → decode instruction → emulate against per-vCPU virtual state&rdquo;. The HVM/PVH path is &ldquo;VM-exit → VMCS <code>EXIT_REASON</code> field → dispatch in <code>vmx_vmexit_handler</code>&rsquo;s switch → emulate or fix-up → <code>vmresume</code>&rdquo;. Per-event cost is comparable on modern hardware; the <em>number</em> of events differs dramatically because PV guests batch operations into hypercalls, HVM/PVH guests trigger one exit per sensitive instruction unless the VMCS execution controls let it pass through.</p>
+<h3 id="trace-1-a-guest-changes-its-page-table-root">Trace 1: a guest changes its page-table root<a hidden class="anchor" aria-hidden="true" href="#trace-1-a-guest-changes-its-page-table-root">#</a></h3>
+<p>The same operation (switching process address spaces) in each mode.</p>
+<p><strong>PV — the cooperative path.</strong> Linux&rsquo;s Xen port does not execute <code>mov %cr3</code> at all. Its <code>pv_mmu_ops.write_cr3</code> calls <code>HYPERVISOR_mmuext_op(MMUEXT_NEW_BASEPTR, mfn)</code>.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest kernel (ring 3 on x86-64)
+</span></span><span class="line"><span class="cl">   │  HYPERVISOR_mmuext_op(NEW_BASEPTR, mfn)
+</span></span><span class="line"><span class="cl">   │  syscall → Xen hypercall page
+</span></span><span class="line"><span class="cl">   ▼
+</span></span><span class="line"><span class="cl">Xen do_mmuext_op (xen/arch/x86/mm.c)
+</span></span><span class="line"><span class="cl">   │  validate: mfn is owned by this domain
+</span></span><span class="line"><span class="cl">   │  validate: mfn has type PGT_l4_page_table (pinned)
+</span></span><span class="line"><span class="cl">   │  update vcpu.arch.guest_table, write CR3 register
+</span></span><span class="line"><span class="cl">   ▼
+</span></span><span class="line"><span class="cl">return to guest at instruction after the hypercall
+</span></span></code></pre></div><p>One hypercall, no x86 exception, no shadow update. The validation is the load-bearing work — Xen confirms the guest isn&rsquo;t trying to install a page-table root it doesn&rsquo;t own.</p>
+<p><strong>HVM — the hardware-assisted path.</strong> Unmodified Linux executes <code>mov %eax, %cr3</code> directly. With EPT and no CR3-store exiting configured (the common modern case), <strong>this does not exit at all</strong>:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest kernel (VMX non-root)
+</span></span><span class="line"><span class="cl">   │  mov %eax, %cr3   ← executes natively
+</span></span><span class="line"><span class="cl">   │  guest&#39;s view of CR3 changes
+</span></span><span class="line"><span class="cl">   ▼
+</span></span><span class="line"><span class="cl">guest continues; EPT continues translating whatever
+</span></span><span class="line"><span class="cl">guest-physical addresses the guest&#39;s new PTs produce
+</span></span></code></pre></div><p>If CR3-store exiting <em>is</em> configured (legacy shadow path, debugging), the path is:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest kernel (VMX non-root)
+</span></span><span class="line"><span class="cl">   │  mov %eax, %cr3
+</span></span><span class="line"><span class="cl">   ▼  ──── VM-exit (saves full guest state to VMCS) ────
+</span></span><span class="line"><span class="cl">Xen vmx_vmexit_handler (vmx.c:4176)
+</span></span><span class="line"><span class="cl">   │  read VMCS.EXIT_REASON  = CR_ACCESS
+</span></span><span class="line"><span class="cl">   │  read VMCS.EXIT_QUALIFICATION  → which CR, R/W, src reg
+</span></span><span class="line"><span class="cl">   │  dispatch vmx_cr_access()
+</span></span><span class="line"><span class="cl">   │  hvm_set_cr3(new_value)
+</span></span><span class="line"><span class="cl">   │   ├─ updates virtual CR3 in vcpu.arch
+</span></span><span class="line"><span class="cl">   │   └─ rebuilds shadow PT (if shadow mode) or no-op (if HAP/EPT)
+</span></span><span class="line"><span class="cl">   │  ──── VMRESUME ────
+</span></span><span class="line"><span class="cl">   ▼
+</span></span><span class="line"><span class="cl">guest resumes at instruction after the mov
+</span></span></code></pre></div><p><strong>PVH</strong> uses EPT and VMX exactly the way HVM does; the CR3 path is mode-agnostic between HVM and PVH. PVH always uses HAP, so the &ldquo;did this exit&rdquo; answer is almost always <em>no</em>.</p>
+<p>Round-trip cost on modern hardware: a few hundred to a few thousand cycles, dominated by save/restore of architectural state across the VM-exit. The trajectory since first-gen VT-x has been to <em>reduce the number of exits</em> — modern guests on EPT + APICv + posted interrupts exit ~100× less per second than they did in 2006.</p>
+<h3 id="vcpu-control-state-side-by-side">vCPU control state, side by side<a hidden class="anchor" aria-hidden="true" href="#vcpu-control-state-side-by-side">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Where guest GPRs live</td>
+          <td><code>vcpu.arch.guest_context</code> (Xen-defined struct)</td>
+          <td><code>vcpu.arch.user_regs</code> + auto-saved VMCS fields</td>
+          <td>Same as HVM</td>
+      </tr>
+      <tr>
+          <td>Hardware control structure</td>
+          <td>None</td>
+          <td>VMCS / VMCB, one per vCPU</td>
+          <td>Same as HVM</td>
+      </tr>
+      <tr>
+          <td>FPU state</td>
+          <td>Lazy-saved into <code>vcpu.arch.fpu_ctxt</code></td>
+          <td>Saved by VMCS auto-save</td>
+          <td>Same as HVM</td>
+      </tr>
+      <tr>
+          <td>Initial state setup</td>
+          <td>Hypervisor reads from <code>XEN_DOMCTL_setvcpucontext</code> payload, populates <code>vcpu.arch.guest_context</code> directly</td>
+          <td>Same payload, populated into VMCS via <code>hvm_set_*</code> helpers</td>
+          <td>Same as HVM</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="scheduling-mode-agnostic">Scheduling (mode-agnostic)<a hidden class="anchor" aria-hidden="true" href="#scheduling-mode-agnostic">#</a></h3>
+<p>The scheduler doesn&rsquo;t care what mode a vCPU is in — same <code>struct vcpu</code> regardless. Five pluggable schedulers ship in-tree via the <code>struct scheduler</code> vtable in <code>xen/common/sched/private.h</code>:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Scheduler</th>
+          <th>File / LoC</th>
+          <th>Use case</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>credit</code></td>
+          <td><code>credit.c</code> / 2315</td>
+          <td>Original SMP-aware proportional-share; legacy</td>
+      </tr>
+      <tr>
+          <td><code>credit2</code></td>
+          <td><code>credit2.c</code> / 4273</td>
+          <td>Modern default; NUMA-aware, hyperthread-aware</td>
+      </tr>
+      <tr>
+          <td><code>null</code></td>
+          <td><code>null.c</code> / 1073</td>
+          <td>Static 1:1 vCPU↔pCPU pinning</td>
+      </tr>
+      <tr>
+          <td><code>arinc653</code></td>
+          <td><code>arinc653.c</code> / ~750</td>
+          <td>ARINC 653 time-partitioned, for avionics</td>
+      </tr>
+      <tr>
+          <td><code>rt</code></td>
+          <td><code>rt.c</code> / ~1500</td>
+          <td>Real-time (deferrable server / EDF variants)</td>
+      </tr>
+  </tbody>
+</table>
+<p>Credit2 algorithm (design comment at <code>credit2.c:75</code>): each runnable vCPU has a weight (default 256, configurable per-domain). Credits burn as the vCPU runs at rate <code>1/weight</code>, so heavy vCPUs burn slowly. Runqueue sorted by remaining credits, highest-credit vCPU runs next. When the next vCPU&rsquo;s credits go ≤0, <em>everyone</em> gets a credit reset, preserving relative order.</p>
+<p>What turns this into 4273 lines: NUMA-aware migration, hyperthread awareness, multiple per-NUMA runqueues with periodic load-balancing, wake-up &ldquo;tickling&rdquo; (a newly-runnable vCPU shouldn&rsquo;t wait for the next tick), and <strong>CPU pools</strong> (<code>xen/common/sched/cpupool.c</code>) — each pool has its own runqueues and its own scheduler instance, so different domains can run on different scheduling regimes on the same machine.</p>
+<p><code>null</code> is the interesting comparison: ~1000 LoC, holds a single mapping from vCPU to pCPU, <code>do_schedule</code> just returns &ldquo;keep running who you were running&rdquo;. No runqueue, no credits, no balancing. The same scheduler vtable Credit2 fills with 4273 lines.</p>
+<hr>
+<h2 id="05--memory-virtualization">§05 — Memory virtualization<a hidden class="anchor" aria-hidden="true" href="#05--memory-virtualization">#</a></h2>
+<p>The memory model is where the three modes are <em>most</em> different — three distinct mechanisms for translating guest-virtual to host-physical.</p>
+<h3 id="the-translation-pipeline-by-mode">The translation pipeline by mode<a hidden class="anchor" aria-hidden="true" href="#the-translation-pipeline-by-mode">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>PV</th>
+          <th>HVM (legacy)</th>
+          <th>HVM (modern) / PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Guest manages its own PTs?</td>
+          <td>Yes, but every write validated by hypercall</td>
+          <td>No — Xen maintains shadows</td>
+          <td>Yes, walks them natively</td>
+      </tr>
+      <tr>
+          <td>Translation path</td>
+          <td>guest-virtual → host-physical (one walk, guest PT)</td>
+          <td>guest-virtual → host-physical (one walk, shadow PT)</td>
+          <td>guest-virtual → guest-physical (guest PT) → host-physical (EPT)</td>
+      </tr>
+      <tr>
+          <td>Hardware support needed</td>
+          <td>None</td>
+          <td>VT-x</td>
+          <td>VT-x + EPT/NPT</td>
+      </tr>
+      <tr>
+          <td>Xen intervention per guest PT write</td>
+          <td>Hypercall (validation)</td>
+          <td>Shadow PT recompute on trap</td>
+          <td>Never</td>
+      </tr>
+      <tr>
+          <td>Code location</td>
+          <td><code>xen/arch/x86/mm.c</code></td>
+          <td><code>xen/arch/x86/mm/shadow/</code></td>
+          <td><code>xen/arch/x86/mm/p2m*.c</code></td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="pv-validated-direct-page-tables">PV: validated direct page tables<a hidden class="anchor" aria-hidden="true" href="#pv-validated-direct-page-tables">#</a></h3>
+<p>This is the part most worth understanding mechanically — it&rsquo;s unique to Xen and shows what&rsquo;s possible without hardware support.</p>
+<p><strong>Setup</strong>: every host-physical page has a <em>type</em>, tracked in a Xen-internal array (one entry per 4 KB page):</p>
+<ul>
+<li><code>PGT_none</code> — ordinary data</li>
+<li><code>PGT_writable_page</code> — writable mapping exists</li>
+<li><code>PGT_l1_page_table</code> / <code>_l2_</code> / <code>_l3_</code> / <code>_l4_page_table</code> — used as a page table at the given level</li>
+<li><code>PGT_seg_desc_page</code> — used as a GDT/LDT page</li>
+</ul>
+<p><strong>Two invariants</strong> Xen enforces:</p>
+<ol>
+<li>A page typed as a page-table cannot also have writable mappings. To modify a PT page, the guest calls <code>mmuext_op(MMUEXT_UNPIN)</code> to drop its type, modifies it, calls <code>MMUEXT_PIN_TABLE</code> to re-establish.</li>
+<li>Every entry installed into a PT page is validated: does the entry reference a page this domain owns? Are permissions consistent (no writable mapping to a typed PT page)?</li>
+</ol>
+<p><strong>Guest interface</strong>: <code>__HYPERVISOR_mmu_update</code> (hypercall #1, handler <code>do_mmu_update</code> in <code>xen/arch/x86/mm.c</code>). Guests submit batches of <code>(pte_address, new_value)</code> updates; Xen validates and applies each. Batching is essential — guests wait until they have TLB-flush-sized batches before submitting.</p>
+<p>The validation discipline lives in <code>xen/arch/x86/mm.c:get_page_type()</code> — the function that embodies the entire mechanism. An afternoon with that function is what makes PV memory click.</p>
+<p><strong>Cost profile</strong>: zero per-translation overhead (MMU walks guest&rsquo;s own PT directly); per-update hypercall cost, amortized by batching. On steady-state workloads PV typically <em>beat</em> first-generation VT-x + shadow because PV avoided per-PT-write VM-exits.</p>
+<p><strong>Why HVM doesn&rsquo;t use this</strong>: HVM exists for unmodified guests, and an unmodified guest doesn&rsquo;t issue <code>mmu_update</code> hypercalls — it just does <code>mov %eax, (%rdi)</code> to write a PTE. Without paravirtualization, the writes can&rsquo;t be intercepted without shadow tables or hardware nested paging.</p>
+<h3 id="hvm-legacy-shadow-page-tables">HVM legacy: shadow page tables<a hidden class="anchor" aria-hidden="true" href="#hvm-legacy-shadow-page-tables">#</a></h3>
+<p>When HVM landed in 2005 for first-gen VT-x without nested paging, Xen had to maintain shadow tables — the mechanism <a href="/virtualization/memory/">§05</a> describes:</p>
+<ul>
+<li>Mark guest PT pages read-only in the shadow tables (the ones hardware actually walks).</li>
+<li>Trap guest writes to PT pages, decode the write, propagate to the shadow.</li>
+<li>Keep shadows coherent on every guest update.</li>
+</ul>
+<p>Code in <code>xen/arch/x86/mm/shadow/</code>. High maintenance cost (per-write trap), substantial memory cost (one shadow tree per guest address space). Used today only as fallback when EPT/NPT is unavailable.</p>
+<h3 id="hvm-modern--pvh-nested-paging-eptnpt">HVM modern / PVH: nested paging (EPT/NPT)<a hidden class="anchor" aria-hidden="true" href="#hvm-modern--pvh-nested-paging-eptnpt">#</a></h3>
+<p>EPT (Intel, Nehalem 2008) and NPT (AMD, Barcelona 2007) add a hardware-walked second translation layer. Xen manages a per-domain <em>p2m table</em> in <code>xen/arch/x86/mm/p2m*.c</code>. The guest manages its own first-stage PTs natively; the MMU walks both stages.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest-virtual addr
+</span></span><span class="line"><span class="cl">       │
+</span></span><span class="line"><span class="cl">       │  guest&#39;s own page table  ← guest writes freely, no exit
+</span></span><span class="line"><span class="cl">       ▼
+</span></span><span class="line"><span class="cl">guest-physical addr
+</span></span><span class="line"><span class="cl">       │
+</span></span><span class="line"><span class="cl">       │  EPT / NPT  ← Xen-managed, hardware-walked
+</span></span><span class="line"><span class="cl">       ▼
+</span></span><span class="line"><span class="cl">host-physical addr
+</span></span></code></pre></div><p>The transformative consequence: <strong>the guest can manage its own page tables without Xen ever intervening</strong>. Guest PT writes, <code>mov %eax, %cr3</code>, <code>invlpg</code> — all execute natively. Xen is involved only when the second-stage mapping itself must change (memory hotplug, ballooning, dirty tracking for migration).</p>
+<p><strong>Cost profile</strong>: longer page-table walks (composed two-stage; worst case ~24 memory accesses for 4-level paging on a TLB miss), TLB pressure higher; mitigated by paging-structure caches and 2M/1G huge pages on the second stage.</p>
+<h3 id="memory-allocation-and-overcommit">Memory allocation and overcommit<a hidden class="anchor" aria-hidden="true" href="#memory-allocation-and-overcommit">#</a></h3>
+<p>Across all three modes, memory is statically partitioned at domain creation by default. The 2003 paper §3.3.4: <em>&ldquo;The initial memory allocation, or reservation, for each domain is specified at the time of its creation; memory is thus statically partitioned between domains, providing strong isolation.&rdquo;</em></p>
+<p>The allocation hypercall is <code>XENMEM_populate_physmap</code> (sub-op of <code>__HYPERVISOR_memory_op</code> #12, handler at <code>xen/common/memory.c:1561</code>): caller specifies how many pages to allocate and where to map them in the target domain&rsquo;s guest-physical space.</p>
+<p>Overcommit mechanisms by mode:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Mechanism</th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+          <th>Notes</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Ballooning</td>
+          <td>✓</td>
+          <td>✓ (via PV drivers in guest)</td>
+          <td>✓</td>
+          <td>Dominant production mechanism in all modes</td>
+      </tr>
+      <tr>
+          <td>Maximum-allowable reservation</td>
+          <td>✓</td>
+          <td>✓</td>
+          <td>✓</td>
+          <td><code>tot_pages &lt; max_pages</code> at creation</td>
+      </tr>
+      <tr>
+          <td>Demand allocation via p2m fault</td>
+          <td>n/a</td>
+          <td>✓ via EPT fault</td>
+          <td>✓ via EPT fault</td>
+          <td>Requires a hardware-walked second stage</td>
+      </tr>
+      <tr>
+          <td>Tmem (transcendent memory)</td>
+          <td>(historical)</td>
+          <td>(historical)</td>
+          <td>(historical)</td>
+          <td>Dropped in modern versions</td>
+      </tr>
+      <tr>
+          <td>Live-migration dirty tracking</td>
+          <td>log-dirty on shadow</td>
+          <td>log-dirty on shadow or EPT</td>
+          <td>log-dirty on EPT</td>
+          <td>Same machinery as for migration</td>
+      </tr>
+      <tr>
+          <td>Content-based page sharing</td>
+          <td>Not in-tree</td>
+          <td>Not in-tree</td>
+          <td>Not in-tree</td>
+          <td>Security concerns kept it out</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="iommu-integration-mode-agnostic">IOMMU integration (mode-agnostic)<a hidden class="anchor" aria-hidden="true" href="#iommu-integration-mode-agnostic">#</a></h3>
+<p>For DMA confinement on pass-through, Xen integrates VT-d / AMD-Vi. Each domain has an IOMMU page table mirroring its CPU-visible memory map. Code in <code>xen/drivers/passthrough/{vtd,amd}/</code>. The IOMMU sees guest-physical addresses and translates them to host-physical using its own per-domain table, regardless of how the CPU-side translation is implemented.</p>
+<hr>
+<h2 id="06--io-virtualization">§06 — I/O virtualization<a hidden class="anchor" aria-hidden="true" href="#06--io-virtualization">#</a></h2>
+<p>Xen&rsquo;s I/O architecture is the cleanest example of the <a href="/virtualization/vmm-architecture/">§03</a> disaggregated shape: <strong>the hypervisor contains no device drivers</strong>. All device work happens in <code>dom0</code> (or in a dedicated driver domain), and <code>domU</code> guests reach devices through the <a href="/virtualization/communication/">§07</a> mechanism set.</p>
+<h3 id="io-approach-availability-by-mode">I/O approach availability by mode<a hidden class="anchor" aria-hidden="true" href="#io-approach-availability-by-mode">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>Approach</th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Split drivers (frontend ↔ dom0 backend)</td>
+          <td>✓ (only option)</td>
+          <td>✓ (with Xen-aware PV drivers in guest)</td>
+          <td>✓ (default)</td>
+      </tr>
+      <tr>
+          <td>Full device emulation via <code>qemu-dm</code></td>
+          <td>✗</td>
+          <td>✓</td>
+          <td>✗ (deliberately omitted)</td>
+      </tr>
+      <tr>
+          <td>Direct device assignment + IOMMU</td>
+          <td>✓ (with caveats)</td>
+          <td>✓</td>
+          <td>✓</td>
+      </tr>
+  </tbody>
+</table>
+<p>The asymmetry is intentional. PVH was created as &ldquo;HVM without qemu-dm&rdquo;. Unmodified Windows needs HVM because it needs emulated legacy devices; cooperating Linux needs none of that and runs as PVH with a much smaller TCB.</p>
+<h3 id="approach-1-split-drivers--the-original-xen-io-design">Approach 1: split drivers — the original Xen I/O design<a hidden class="anchor" aria-hidden="true" href="#approach-1-split-drivers--the-original-xen-io-design">#</a></h3>
+<p>A <code>domU</code> runs <em>frontend</em> drivers (<code>xen-netfront</code>, <code>xen-blkfront</code>); <code>dom0</code> runs <em>backend</em> drivers (<code>xen-netback</code>, <code>xen-blkback</code>). They communicate via the <a href="/virtualization/communication/">§07</a> mechanisms (event channels + I/O rings + grant tables). The hypervisor itself never touches the data path.</p>
+<p>Available in all three modes. In PV/PVH the guest natively uses Xen-PV frontend drivers. In HVM the guest installs Xen PV drivers (Linux&rsquo;s are upstream; Windows ships them separately) and they take over from emulated devices for the fast path.</p>
+<p>End-to-end trace below in §07.</p>
+<h3 id="approach-2-hvm-device-emulation-via-qemu-dm">Approach 2: HVM device emulation via <code>qemu-dm</code><a hidden class="anchor" aria-hidden="true" href="#approach-2-hvm-device-emulation-via-qemu-dm">#</a></h3>
+<p><strong>HVM-only.</strong> When the design committed to running unmodified guests in 2005, those guests expected to see a virtual BIOS, a virtual PCI bus, an emulated IDE controller, an emulated Realtek NIC. Xen&rsquo;s solution: each HVM <code>domU</code> gets a dedicated <code>qemu-dm</code> process in <code>dom0</code> user-space.</p>
+<p>The flow on a guest MMIO access to an emulated device region:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-gdscript3" data-lang="gdscript3"><span class="line"><span class="cl"><span class="n">guest</span> <span class="p">(</span><span class="n">HVM</span><span class="p">,</span> <span class="n">VMX</span> <span class="n">non</span><span class="o">-</span><span class="n">root</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">mov</span> <span class="o">%</span><span class="n">eax</span><span class="p">,</span> <span class="p">(</span><span class="n">mmio_addr</span><span class="p">)</span>   <span class="err">←</span> <span class="n">writes</span> <span class="n">to</span> <span class="n">a</span> <span class="n">device</span> <span class="n">register</span>
+</span></span><span class="line"><span class="cl">   <span class="err">▼</span>  <span class="err">────</span> <span class="n">EPT</span> <span class="n">fault</span> <span class="p">(</span><span class="n">region</span> <span class="n">unmapped</span> <span class="n">at</span> <span class="n">stage</span> <span class="mi">2</span><span class="p">)</span> <span class="err">→</span> <span class="n">VM</span><span class="o">-</span><span class="n">exit</span> <span class="err">────</span>
+</span></span><span class="line"><span class="cl"><span class="n">Xen</span> <span class="n">vmx_vmexit_handler</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">exit</span> <span class="n">reason</span><span class="p">:</span> <span class="n">EPT_VIOLATION</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">resolve</span> <span class="n">mmio_addr</span> <span class="n">to</span> <span class="n">an</span> <span class="n">ioreq</span> <span class="n">server</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">write</span> <span class="n">request</span> <span class="p">{</span><span class="n">addr</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">dir</span><span class="p">}</span> <span class="n">into</span> <span class="n">shared</span> <span class="n">ioreq</span> <span class="n">page</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">block</span> <span class="n">vCPU</span>
+</span></span><span class="line"><span class="cl">   <span class="err">▼</span>  <span class="err">────</span> <span class="k">signal</span> <span class="n">qemu</span><span class="o">-</span><span class="n">dm</span> <span class="n">via</span> <span class="n">event</span> <span class="n">channel</span> <span class="err">────</span>
+</span></span><span class="line"><span class="cl"><span class="n">qemu</span><span class="o">-</span><span class="n">dm</span> <span class="n">process</span> <span class="p">(</span><span class="ow">in</span> <span class="n">dom0</span> <span class="n">user</span><span class="o">-</span><span class="n">space</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">wakes</span> <span class="n">on</span> <span class="n">event</span><span class="p">,</span> <span class="n">reads</span> <span class="n">ioreq</span> <span class="n">page</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">emulates</span> <span class="n">device</span> <span class="n">behavior</span> <span class="p">(</span><span class="n">updates</span> <span class="n">virtual</span> <span class="n">NIC</span> <span class="n">reg</span><span class="p">,</span> <span class="n">queues</span> <span class="n">packet</span><span class="p">,</span> <span class="err">…</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">writes</span> <span class="n">result</span> <span class="n">back</span> <span class="n">to</span> <span class="n">ioreq</span> <span class="n">page</span>
+</span></span><span class="line"><span class="cl">   <span class="err">▼</span>  <span class="err">────</span> <span class="k">signal</span> <span class="n">Xen</span> <span class="n">via</span> <span class="n">event</span> <span class="n">channel</span> <span class="err">────</span>
+</span></span><span class="line"><span class="cl"><span class="n">Xen</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="n">unblock</span> <span class="n">vCPU</span><span class="p">,</span> <span class="n">restore</span> <span class="n">registers</span> <span class="p">(</span><span class="n">write</span> <span class="n">result</span> <span class="n">into</span> <span class="n">guest</span> <span class="o">%</span><span class="n">eax</span> <span class="k">for</span> <span class="n">reads</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">   <span class="err">│</span>  <span class="err">────</span> <span class="n">VMRESUME</span> <span class="err">────</span>
+</span></span><span class="line"><span class="cl">   <span class="err">▼</span>
+</span></span><span class="line"><span class="cl"><span class="n">guest</span> <span class="n">resumes</span>
+</span></span></code></pre></div><p>ioreq mechanism lives in <code>xen/common/ioreq.c</code> (Xen side) and <code>tools/qemu-xen/hw/xen/xen-hvm.c</code> (QEMU side). It&rsquo;s structurally identical to KVM+QEMU (<a href="/virtualization/vmm-architecture/">§03</a>&rsquo;s &ldquo;hosted&rdquo; shape) — the difference being that the QEMU process lives in a guest (<code>dom0</code>) rather than on a host kernel.</p>
+<p>This is where most of the &ldquo;why does Xen need <code>dom0</code> so much&rdquo; TCB pressure comes from: <code>qemu-dm</code> is QEMU, and QEMU is over a million lines of C.</p>
+<p>PV and PVH don&rsquo;t go through this path because they have no emulated devices to begin with.</p>
+<h3 id="approach-3-direct-device-assignment-with-iommu">Approach 3: direct device assignment with IOMMU<a hidden class="anchor" aria-hidden="true" href="#approach-3-direct-device-assignment-with-iommu">#</a></h3>
+<p>Assign a physical device to one domain. The domain&rsquo;s driver programs real registers; device DMAs into the domain&rsquo;s memory directly; interrupts route to the domain&rsquo;s vCPU via IOMMU interrupt remapping.</p>
+<p>Available in all three modes, with mode-specific complications:</p>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Pass through PCI devices</td>
+          <td>✓ (<code>pciback</code> in dom0, <code>pcifront</code> in domU)</td>
+          <td>✓ (VFIO-style, direct)</td>
+          <td>✓</td>
+      </tr>
+      <tr>
+          <td>MMIO BAR mapping</td>
+          <td>Granted or directly mapped</td>
+          <td>Direct in EPT</td>
+          <td>Direct in EPT</td>
+      </tr>
+      <tr>
+          <td>Interrupt delivery</td>
+          <td>Via event channel (PIRQ)</td>
+          <td>Posted interrupts (if supported)</td>
+          <td>Posted interrupts</td>
+      </tr>
+      <tr>
+          <td>SR-IOV virtual functions</td>
+          <td>✓</td>
+          <td>✓</td>
+          <td>✓</td>
+      </tr>
+  </tbody>
+</table>
+<p>In production a typical HVM <code>domU</code> runs with: Xen PV split-driver network and block (fast path), emulated VGA via <code>qemu-dm</code> (boot and debug), possibly an SR-IOV NIC VF (latency-sensitive). PVH <code>domU</code>s skip the qemu-dm piece but otherwise look identical.</p>
+<hr>
+<h2 id="07--cross-domain-communication">§07 — Cross-domain communication<a hidden class="anchor" aria-hidden="true" href="#07--cross-domain-communication">#</a></h2>
+<p>This is the part of Xen the survey <a href="/virtualization/communication/">§07</a> was largely written <em>about</em>, and the part most independent of mode — the three mechanisms (event channels, grant tables, I/O rings) work identically across PV/HVM/PVH. What differs is how the guest <em>invokes</em> them.</p>
+<h3 id="hypercall-entry-by-mode">Hypercall entry by mode<a hidden class="anchor" aria-hidden="true" href="#hypercall-entry-by-mode">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Hypercall instruction</td>
+          <td><code>int 0x82</code> (x86-32) / <code>syscall</code> to Xen hypercall page (x86-64)</td>
+          <td><code>vmcall</code> (Intel) / <code>vmmcall</code> (AMD)</td>
+          <td><code>vmcall</code> / <code>vmmcall</code></td>
+      </tr>
+      <tr>
+          <td>Mode transition</td>
+          <td>x86 exception / syscall</td>
+          <td>VM-exit</td>
+          <td>VM-exit</td>
+      </tr>
+      <tr>
+          <td>Argument passing</td>
+          <td>Registers, conventional</td>
+          <td>Registers, conventional</td>
+          <td>Registers, conventional</td>
+      </tr>
+      <tr>
+          <td>Hypercall numbers</td>
+          <td>Same <code>__HYPERVISOR_*</code> table</td>
+          <td>Same</td>
+          <td>Same</td>
+      </tr>
+  </tbody>
+</table>
+<p>Once inside Xen, all hypercalls dispatch through the same <code>do_*</code> handlers regardless of mode. The mechanism differences are at the entry boundary, not the semantics.</p>
+<h3 id="hypercall-surface-40-entries-hot-path-is-a-handful">Hypercall surface (~40 entries, hot path is a handful)<a hidden class="anchor" aria-hidden="true" href="#hypercall-surface-40-entries-hot-path-is-a-handful">#</a></h3>
+<p>Defined in <code>xen/include/public/xen.h</code>. The most architecturally important:</p>
+<table>
+  <thead>
+      <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Purpose</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>1</td>
+          <td><code>mmu_update</code></td>
+          <td>Batched page-table updates with validation (PV)</td>
+      </tr>
+      <tr>
+          <td>12</td>
+          <td><code>memory_op</code></td>
+          <td><code>XENMEM_*</code> — reservation, ballooning, populate-on-demand</td>
+      </tr>
+      <tr>
+          <td>20</td>
+          <td><code>grant_table_op</code></td>
+          <td><code>GNTTABOP_*</code> — inter-domain page grants</td>
+      </tr>
+      <tr>
+          <td>24</td>
+          <td><code>vcpu_op</code></td>
+          <td>vCPU lifecycle (online/offline, register hooks)</td>
+      </tr>
+      <tr>
+          <td>26</td>
+          <td><code>mmuext_op</code></td>
+          <td>Extended MMU ops (TLB flush, page-type pin/unpin)</td>
+      </tr>
+      <tr>
+          <td>29</td>
+          <td><code>sched_op</code></td>
+          <td>Yield, block, shutdown, poll</td>
+      </tr>
+      <tr>
+          <td>32</td>
+          <td><code>event_channel_op</code></td>
+          <td><code>EVTCHNOP_*</code> — event channel management</td>
+      </tr>
+      <tr>
+          <td>33</td>
+          <td><code>physdev_op</code></td>
+          <td>Physical device ops (driver domains / dom0 only)</td>
+      </tr>
+      <tr>
+          <td>34</td>
+          <td><code>hvm_op</code></td>
+          <td>HVM-specific ops (set/get param, inject interrupt)</td>
+      </tr>
+      <tr>
+          <td>36</td>
+          <td><code>domctl</code></td>
+          <td>Domain create/start/stop/destroy — <code>dom0</code> only</td>
+      </tr>
+  </tbody>
+</table>
+<p>Hot-path hypercalls in steady state: <code>event_channel_op_send</code>, <code>grant_table_op</code>, <code>sched_op_block</code>, and (for PV only) <code>mmu_update</code>. Everything else is control plane.</p>
+<h3 id="event-channels--asynchronous-notification">Event channels — asynchronous notification<a hidden class="anchor" aria-hidden="true" href="#event-channels--asynchronous-notification">#</a></h3>
+<p>A per-domain bitmap of pending-event bits with edge-triggered semantics. Code at <code>xen/common/event_channel.c</code> (1822 LoC). <code>struct evtchn</code> is allocated lazily into per-domain bucket arrays (two-level scheme).</p>
+<p>The op set (<code>do_event_channel_op</code> at line 1354):</p>
+<ul>
+<li><code>EVTCHNOP_alloc_unbound</code> — domain allocates an unbound port willing to be bound by a peer</li>
+<li><code>EVTCHNOP_bind_interdomain</code> — bind to a remote domain&rsquo;s unbound port (mutual rendezvous)</li>
+<li><code>EVTCHNOP_bind_virq</code> — bind to a virtual IRQ (timer, debug, console)</li>
+<li><code>EVTCHNOP_bind_ipi</code> — bind to an inter-vCPU IPI within the same domain</li>
+<li><code>EVTCHNOP_bind_pirq</code> — bind to a real hardware IRQ (driver domains only)</li>
+<li><code>EVTCHNOP_send</code> — fire an edge on a port (waking the peer)</li>
+<li><code>EVTCHNOP_unmask</code> — re-enable a port after handling</li>
+<li><code>EVTCHNOP_init_control</code>, <code>expand_array</code> — FIFO event-channel ABI v2</li>
+</ul>
+<p>Event channels carry only <em>notification</em>, not data. They are how <code>dom0</code>&rsquo;s backend tells a <code>domU</code>&rsquo;s frontend &ldquo;your I/O completed&rdquo;, and how Xen tells the guest &ldquo;a virq fired&rdquo;.</p>
+<h3 id="io-rings--shared-memory-transport">I/O rings — shared-memory transport<a hidden class="anchor" aria-hidden="true" href="#io-rings--shared-memory-transport">#</a></h3>
+<p>A circular queue of descriptors in a page shared between two domains. Four pointers control synchronization:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">                  shared ring (mapped into both)
+</span></span><span class="line"><span class="cl">       ┌─────────────────────────────────────────────────┐
+</span></span><span class="line"><span class="cl">       │ desc 0 │ desc 1 │ desc 2 │ ... │ desc N         │
+</span></span><span class="line"><span class="cl">       └────────┴────────┴────────┴─────┴────────────────┘
+</span></span><span class="line"><span class="cl">            ▲                                ▲
+</span></span><span class="line"><span class="cl">       req_prod                          req_cons
+</span></span><span class="line"><span class="cl">   (producer writes,                 (consumer reads,
+</span></span><span class="line"><span class="cl">    shared)                            private to consumer)
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">       ▼                                ▼
+</span></span><span class="line"><span class="cl">       ... responses come back in the second half:
+</span></span><span class="line"><span class="cl">       rsp_prod (backend writes)        rsp_cons (frontend reads)
+</span></span></code></pre></div><p>Only one side writes each index, so consumer/producer synchronization is lock-free. Templated by message type via macros in <code>xen/include/public/io/ring.h</code>; concrete formats in <code>io/netif.h</code> (network), <code>io/blkif.h</code> (block), <code>io/console.h</code>, etc.</p>
+<p><strong>virtio&rsquo;s virtqueue is the direct lineal descendant</strong> of this design. If you understand Xen&rsquo;s I/O rings you understand virtqueues, and vice versa.</p>
+<h3 id="grant-tables--memory-sharing-with-authorization">Grant tables — memory sharing with authorization<a hidden class="anchor" aria-hidden="true" href="#grant-tables--memory-sharing-with-authorization">#</a></h3>
+<p>The mechanism that ties rings to bulk data transfer. Code at <code>xen/common/grant_table.c</code> (4412 LoC, the largest file in <code>xen/common/</code>).</p>
+<p>A <em>grant</em> is a domain&rsquo;s authorization for another <em>specific</em> domain to access <em>specific</em> pages with <em>specific</em> permissions, published into a per-domain grant table. The op set (<code>do_grant_table_op</code> at line 3639):</p>
+<ul>
+<li><code>GNTTABOP_map_grant_ref</code> — recipient maps a granted page into its address space</li>
+<li><code>GNTTABOP_unmap_grant_ref</code> — recipient releases the mapping</li>
+<li><code>GNTTABOP_unmap_and_replace</code> — atomic unmap-and-substitute (page flipping)</li>
+<li><code>GNTTABOP_setup_table</code>, <code>set_version</code>, <code>get_version</code>, <code>query_size</code> — table management</li>
+<li><code>GNTTABOP_transfer</code> — <em>give</em> a page to another domain (ownership transfer)</li>
+<li><code>GNTTABOP_copy</code> — hypervisor-mediated copy between two granted pages (avoids mapping)</li>
+<li><code>GNTTABOP_cache_flush</code> — flush hypervisor cache state</li>
+</ul>
+<p>Properties grants provide: <strong>revocation</strong> (granter can withdraw), <strong>fine-grained authorization</strong> (each grant names a specific recipient), <strong>delegation control</strong> (grant can disallow re-granting). Essential when the parties don&rsquo;t fully trust each other — exactly the setting of a disaggregated VMM where backend and <code>domU</code> share buffers but don&rsquo;t trust each other&rsquo;s correctness.</p>
+<p><code>GNTTABOP_copy</code> is worth flagging: instead of granting access for the recipient to <em>map</em>, the granter says &ldquo;the hypervisor may copy from this page to that page&rdquo;, and the data movement happens entirely under hypervisor control. Used heavily on the network receive path where map/unmap-per-packet cost exceeds copy cost.</p>
+<h3 id="the-three-mechanisms-composed-trace-2-a-disk-read-end-to-end">The three mechanisms composed: trace 2, a disk read end to end<a hidden class="anchor" aria-hidden="true" href="#the-three-mechanisms-composed-trace-2-a-disk-read-end-to-end">#</a></h3>
+<p>The clearest demonstration of how the §07 mechanism set actually works. Works identically in PV / HVM-with-PV-drivers / PVH.</p>
+<p><strong>Setup once, at domain start</strong> (executed by <code>xen-blkfront</code> in <code>domU</code> and <code>xen-blkback</code> in <code>dom0</code>):</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">domU xen-blkfront                              dom0 xen-blkback
+</span></span><span class="line"><span class="cl">─────────────────                              ───────────────
+</span></span><span class="line"><span class="cl">1. allocate ring page in domU memory
+</span></span><span class="line"><span class="cl">2. GNTTABOP grant access to ring → ref_R
+</span></span><span class="line"><span class="cl">3. EVTCHNOP_alloc_unbound → port_E
+</span></span><span class="line"><span class="cl">4. xenstore: write {ref_R, port_E}
+</span></span><span class="line"><span class="cl">                                   ◀──── xenstore watch fires
+</span></span><span class="line"><span class="cl">                                       5. read {ref_R, port_E}
+</span></span><span class="line"><span class="cl">                                       6. GNTTABOP_map_grant_ref(ref_R)
+</span></span><span class="line"><span class="cl">                                          → ring page mapped into dom0
+</span></span><span class="line"><span class="cl">                                       7. EVTCHNOP_bind_interdomain(port_E)
+</span></span><span class="line"><span class="cl">                                       8. xenstore: state = Connected
+</span></span></code></pre></div><p><strong>Per read operation</strong>:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">domU xen-blkfront                              dom0 xen-blkback                              physical disk
+</span></span><span class="line"><span class="cl">─────────────────                              ───────────────                              ─────────────
+</span></span><span class="line"><span class="cl">1. read() arrives at frontend
+</span></span><span class="line"><span class="cl">2. alloc data-buffer page
+</span></span><span class="line"><span class="cl">3. GNTTABOP grant access → ref_D
+</span></span><span class="line"><span class="cl">4. write req desc {READ, sector, ref_D, len, id}
+</span></span><span class="line"><span class="cl">   to ring; bump req_prod
+</span></span><span class="line"><span class="cl">5. EVTCHNOP_send(port_E)
+</span></span><span class="line"><span class="cl">   ─────────────────────────▶ Xen sets pending bit on
+</span></span><span class="line"><span class="cl">                              dom0&#39;s vcpu_info page
+</span></span><span class="line"><span class="cl">                                              6. dom0 vCPU sees event,
+</span></span><span class="line"><span class="cl">                                                 runs callback
+</span></span><span class="line"><span class="cl">                                              7. backend worker wakes,
+</span></span><span class="line"><span class="cl">                                                 reads req from ring
+</span></span><span class="line"><span class="cl">                                              8. GNTTABOP_map_grant_ref(ref_D)
+</span></span><span class="line"><span class="cl">                                                 → data page mapped into dom0
+</span></span><span class="line"><span class="cl">                                              9. issue real I/O via Linux blk layer
+</span></span><span class="line"><span class="cl">                                                                          ────────────▶ DMA into
+</span></span><span class="line"><span class="cl">                                                                                       granted page
+</span></span><span class="line"><span class="cl">                                                                          ◀──────────── completion irq
+</span></span><span class="line"><span class="cl">                                             10. write rsp desc to ring,
+</span></span><span class="line"><span class="cl">                                                 bump rsp_prod
+</span></span><span class="line"><span class="cl">                                             11. GNTTABOP_unmap_grant_ref(ref_D)
+</span></span><span class="line"><span class="cl">                                             12. EVTCHNOP_send(port_E)
+</span></span><span class="line"><span class="cl">                              ◀──────────── Xen sets pending bit on
+</span></span><span class="line"><span class="cl">                                            domU&#39;s vcpu_info page
+</span></span><span class="line"><span class="cl">13. domU vCPU sees event,
+</span></span><span class="line"><span class="cl">    runs callback
+</span></span><span class="line"><span class="cl">14. read rsp from ring
+</span></span><span class="line"><span class="cl">15. read() returns to userspace
+</span></span></code></pre></div><p><strong>Cost summary</strong>: 2 hypercalls (one send each direction), 2 grant operations, potentially zero copies (DMA into granted page), one scheduler hop each direction. The ring carried the data transfer; the event channel carried notification; the grant table provided authorization. Three mechanisms composing into exactly the right primitive for &ldquo;domain A asks domain B to do work on a buffer&rdquo;.</p>
+<p>In practice it&rsquo;s faster than this description suggests: frontends pre-grant a pool of pages and reuse them across many requests (amortizing grant cost); backends batch (one event drains all pending requests); notification suppression skips <code>EVTCHNOP_send</code> when both sides know the other is already polling.</p>
+<hr>
+<h2 id="08--vm-management">§08 — VM management<a hidden class="anchor" aria-hidden="true" href="#08--vm-management">#</a></h2>
+<p>Mostly mode-agnostic at the hypercall level (<code>domctl</code> semantics are uniform), but domain <em>construction</em> differs substantially because each mode has its own boot-state setup.</p>
+<h3 id="xenstore--the-system-wide-config-database">xenstore — the system-wide config database<a hidden class="anchor" aria-hidden="true" href="#xenstore--the-system-wide-config-database">#</a></h3>
+<p>A hierarchical key-value store accessible to every domain. The hypervisor itself doesn&rsquo;t implement it — <code>xenstored</code> is a daemon in <code>dom0</code> user-space. Domains talk to it via a shared page + event channel (the typical Xen pattern). It&rsquo;s literally an in-memory tree of strings with permissions per node.</p>
+<p>What it&rsquo;s used for:</p>
+<ul>
+<li><strong>Service discovery</strong>: &ldquo;where&rsquo;s my virtual block device backend?&rdquo; → <code>/local/domain/&lt;id&gt;/device/vbd/.../backend</code></li>
+<li><strong>Frontend/backend handshake</strong>: both sides watch a common path, write their state (<code>Initialising</code>, <code>InitWait</code>, <code>Initialised</code>, <code>Connected</code>, <code>Closing</code>), wait for the other to advance</li>
+<li><strong>Per-VM metadata</strong>: name, UUID, vCPU count, memory size — browsable as <code>xenstore</code> keys</li>
+<li><strong>Live config changes</strong>: <code>xl mem-set domain new-size</code> writes to xenstore; the in-guest balloon driver watches the key and reacts</li>
+</ul>
+<p>Why it exists: <code>dom0</code> and the hypervisor need a <em>uniform</em> way to expose configuration to guests that doesn&rsquo;t require a hypercall ABI extension for every new piece of config. <code>xenstore</code> is the configuration ABI between <code>dom0</code> userspace and <code>domU</code> kernels. You won&rsquo;t see it in the hypervisor source — it&rsquo;s purely a <code>dom0</code>-userspace mechanism — but <code>xenstore-ls</code> in any Xen guest dumps the tree.</p>
+<h3 id="boot-then-dom0">Boot, then dom0<a hidden class="anchor" aria-hidden="true" href="#boot-then-dom0">#</a></h3>
+<p>Two-phase. Phase 1 is the hypervisor coming up; phase 2 is dom0 coming up; phase 3 (every subsequent domain) is dom0 creating domUs.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-gdscript3" data-lang="gdscript3"><span class="line"><span class="cl"><span class="n">Phase</span> <span class="mi">1</span> <span class="err">—</span> <span class="n">hypervisor</span> <span class="n">brings</span> <span class="n">up</span>
+</span></span><span class="line"><span class="cl">   <span class="n">GRUB</span> <span class="n">loads</span> <span class="n">xen</span><span class="o">.</span><span class="n">gz</span> <span class="o">+</span> <span class="n">dom0</span> <span class="n">kernel</span> <span class="o">+</span> <span class="n">initrd</span> <span class="p">(</span><span class="n">multiboot</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="err">│</span>
+</span></span><span class="line"><span class="cl">        <span class="err">▼</span>
+</span></span><span class="line"><span class="cl">   <span class="n">xen</span><span class="o">/</span><span class="n">arch</span><span class="o">/</span><span class="n">x86</span><span class="o">/</span><span class="n">setup</span><span class="o">.</span><span class="n">c</span><span class="p">:</span><span class="n">__start_xen</span> <span class="p">(</span><span class="n">line</span> <span class="mi">1134</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">relocate</span><span class="p">,</span> <span class="k">switch</span> <span class="n">to</span> <span class="mi">64</span><span class="o">-</span><span class="n">bit</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">map</span> <span class="n">Xen</span> <span class="n">at</span> <span class="n">top</span> <span class="mi">64</span> <span class="n">MB</span> <span class="n">of</span> <span class="n">every</span> <span class="n">address</span> <span class="n">space</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">ACPI</span> <span class="n">parse</span><span class="p">,</span> <span class="n">SMP</span> <span class="n">bring</span><span class="o">-</span><span class="n">up</span><span class="p">,</span> <span class="n">NUMA</span> <span class="n">discovery</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">scheduler</span> <span class="n">init</span><span class="p">,</span> <span class="n">event</span><span class="o">-</span><span class="n">channel</span> <span class="n">init</span><span class="p">,</span> <span class="n">grant</span> <span class="n">init</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">IOMMU</span> <span class="n">init</span>
+</span></span><span class="line"><span class="cl">        <span class="err">▼</span>
+</span></span><span class="line"><span class="cl"><span class="n">Phase</span> <span class="mi">2</span> <span class="err">—</span> <span class="n">hypervisor</span> <span class="n">builds</span> <span class="n">dom0</span>
+</span></span><span class="line"><span class="cl">   <span class="n">xen</span><span class="o">/</span><span class="n">arch</span><span class="o">/</span><span class="n">x86</span><span class="o">/</span><span class="n">dom0_build</span><span class="o">.</span><span class="n">c</span><span class="p">:</span><span class="n">construct_dom0</span> <span class="p">(</span><span class="n">line</span> <span class="mi">630</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">allocate</span> <span class="n">struct</span> <span class="n">domain</span> <span class="k">for</span> <span class="n">id</span> <span class="mi">0</span><span class="p">;</span> <span class="n">mark</span> <span class="n">as</span> <span class="n">control</span> <span class="o">+</span> <span class="n">hardware</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">allocate</span> <span class="n">vCPUs</span> <span class="p">(</span><span class="n">default</span><span class="p">:</span> <span class="n">all</span> <span class="n">pCPUs</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">allocate</span> <span class="n">memory</span> <span class="p">(</span><span class="n">default</span><span class="p">:</span> <span class="n">all</span> <span class="n">remaining</span> <span class="n">host</span> <span class="n">RAM</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">build</span> <span class="n">address</span> <span class="n">space</span> <span class="n">per</span> <span class="n">dom0</span> <span class="n">mode</span> <span class="p">(</span><span class="n">PV</span> <span class="o">/</span> <span class="n">PVH</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="nb">load</span> <span class="n">dom0</span> <span class="n">kernel</span> <span class="n">image</span> <span class="n">from</span> <span class="n">multiboot</span> <span class="n">module</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">set</span> <span class="n">vCPU</span> <span class="mi">0</span> <span class="n">initial</span> <span class="n">regs</span><span class="p">:</span>  <span class="o">%</span><span class="n">rip</span> <span class="o">=</span> <span class="n">entry</span><span class="p">,</span> <span class="o">%</span><span class="n">rsi</span> <span class="o">=</span> <span class="n">start_info</span>
+</span></span><span class="line"><span class="cl">        <span class="err">▼</span>
+</span></span><span class="line"><span class="cl">   <span class="n">dom0</span> <span class="p">(</span><span class="n">Linux</span><span class="p">)</span> <span class="n">boots</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">detects</span> <span class="n">Xen</span><span class="p">,</span> <span class="n">takes</span> <span class="n">PV</span><span class="o">/</span><span class="n">PVH</span> <span class="n">boot</span> <span class="n">path</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">initializes</span> <span class="n">drivers</span><span class="p">,</span> <span class="n">filesystems</span><span class="p">,</span> <span class="n">init</span><span class="o">/</span><span class="n">systemd</span>
+</span></span><span class="line"><span class="cl">        <span class="err">├</span> <span class="n">loads</span> <span class="n">xenstored</span><span class="p">,</span> <span class="n">xenconsoled</span>
+</span></span><span class="line"><span class="cl">        <span class="err">└</span> <span class="n">loads</span> <span class="n">xen</span><span class="o">-</span><span class="n">netback</span><span class="p">,</span> <span class="n">xen</span><span class="o">-</span><span class="n">blkback</span> <span class="p">(</span><span class="n">backend</span> <span class="n">kernel</span> <span class="n">modules</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="err">│</span>
+</span></span><span class="line"><span class="cl">        <span class="err">▼</span>
+</span></span><span class="line"><span class="cl"><span class="n">Phase</span> <span class="mi">3</span> <span class="err">—</span> <span class="n">dom0</span> <span class="n">creates</span> <span class="n">domUs</span> <span class="p">(</span><span class="n">per</span> <span class="err">`</span><span class="n">xl</span> <span class="n">create</span><span class="err">`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">   <span class="n">xl</span> <span class="n">reads</span> <span class="n">config</span><span class="p">;</span> <span class="n">parses</span> <span class="n">TOML</span><span class="o">/</span><span class="n">Python</span><span class="o">-</span><span class="n">config</span>
+</span></span><span class="line"><span class="cl">        <span class="err">│</span>
+</span></span><span class="line"><span class="cl">        <span class="err">▼</span>
+</span></span><span class="line"><span class="cl">   <span class="n">libxl</span> <span class="ow">in</span> <span class="n">dom0</span> <span class="n">user</span><span class="o">-</span><span class="n">space</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">1.</span> <span class="n">xc_domain_create</span> <span class="err">→</span> <span class="n">XEN_DOMCTL_createdomain</span>
+</span></span><span class="line"><span class="cl">                              <span class="n">hypervisor</span> <span class="n">allocates</span> <span class="n">empty</span> <span class="n">struct</span> <span class="n">domain</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">2.</span> <span class="n">XENMEM_populate_physmap</span> <span class="err">→</span> <span class="n">allocate</span> <span class="n">guest</span> <span class="n">memory</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">3.</span> <span class="n">map</span> <span class="n">domU</span> <span class="n">memory</span> <span class="n">into</span> <span class="n">dom0</span> <span class="n">via</span> <span class="o">/</span><span class="n">proc</span><span class="o">/</span><span class="n">xen</span><span class="o">/</span><span class="n">privcmd</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">4.</span> <span class="n">read</span> <span class="n">kernel</span> <span class="n">image</span> <span class="n">off</span> <span class="n">disk</span><span class="p">;</span> <span class="n">parse</span> <span class="n">via</span> <span class="n">xg_dom_</span><span class="o">*</span><span class="n">loader</span><span class="o">.</span><span class="n">c</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">5.</span> <span class="n">write</span> <span class="n">image</span> <span class="n">into</span> <span class="n">mapped</span> <span class="n">memory</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">6.</span> <span class="p">(</span><span class="n">HVM</span> <span class="n">only</span><span class="p">)</span> <span class="n">spawn</span> <span class="n">qemu</span><span class="o">-</span><span class="n">dm</span> <span class="n">process</span> <span class="k">for</span> <span class="n">device</span> <span class="n">emulation</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">7.</span> <span class="n">set</span> <span class="n">up</span> <span class="n">start</span><span class="o">-</span><span class="n">info</span> <span class="o">/</span> <span class="n">virtual</span> <span class="n">firmware</span> <span class="n">per</span> <span class="n">mode</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">8.</span> <span class="n">XEN_DOMCTL_setvcpucontext</span> <span class="err">→</span> <span class="n">install</span> <span class="n">initial</span> <span class="n">register</span> <span class="n">state</span>
+</span></span><span class="line"><span class="cl">        <span class="mf">9.</span> <span class="n">XEN_DOMCTL_unpausedomain</span> <span class="err">→</span> <span class="n">hypervisor</span> <span class="n">adds</span> <span class="n">vCPUs</span> <span class="n">to</span> <span class="n">runqueue</span>
+</span></span><span class="line"><span class="cl">        <span class="err">▼</span>
+</span></span><span class="line"><span class="cl">   <span class="n">domU</span> <span class="n">boots</span><span class="p">,</span> <span class="n">frontend</span> <span class="n">drivers</span> <span class="n">connect</span> <span class="n">to</span> <span class="n">dom0</span> <span class="n">backends</span> <span class="n">via</span> <span class="err">§</span><span class="mi">07</span> <span class="n">mechanisms</span>
+</span></span></code></pre></div><p>The trade-off this captures: the hypervisor stays small (no kernel-image loader, no ELF parser, no disk I/O), and domain-building extends to new boot protocols (raw, ELF, bzImage, ARM zImage, PVH, multiboot) by adding loaders in user-space <code>libxl</code>. The cost is that <code>libxl</code> is itself substantial code running with privilege to create any domain.</p>
+<h3 id="domain-construction-by-mode">Domain construction by mode<a hidden class="anchor" aria-hidden="true" href="#domain-construction-by-mode">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>Step</th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Mode flags on createdomain</td>
+          <td>(no special flag)</td>
+          <td><code>CDF_hvm</code> + <code>CDF_hap</code></td>
+          <td><code>CDF_hvm</code> + <code>CDF_hap</code></td>
+      </tr>
+      <tr>
+          <td>Image loading</td>
+          <td>PV-bootloader (<code>pygrub</code>) / ELF with PV notes</td>
+          <td>Place in low memory; SeaBIOS/OVMF firmware separately</td>
+          <td>Place at PVH-spec address</td>
+      </tr>
+      <tr>
+          <td>Address-space setup</td>
+          <td>Build PV page tables in guest memory directly</td>
+          <td>Set up EPT mapping (empty, fills on demand)</td>
+          <td>Set up EPT mapping</td>
+      </tr>
+      <tr>
+          <td>Boot info</td>
+          <td>PV <code>start_info</code> page (memory map, console MFN, store MFN, initrd, cmdline)</td>
+          <td>Virtual BIOS handles it from VMCS state</td>
+          <td>PVH <code>hvm_start_info</code> struct</td>
+      </tr>
+      <tr>
+          <td>Initial register state</td>
+          <td><code>%rip</code> = kernel entry, page-table root pointer, etc.</td>
+          <td><code>%rip</code> = firmware entry, %cr0/cr3/cr4 = initial</td>
+          <td><code>%rip</code> = kernel entry, <code>%rsi</code> = start_info</td>
+      </tr>
+      <tr>
+          <td>qemu-dm</td>
+          <td>n/a</td>
+          <td>One process forked, registers as ioreq server</td>
+          <td>n/a</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>HVM construction is most complex</strong> (extra qemu-dm + firmware setup), <strong>PVH is simplest</strong> (direct kernel boot, no firmware, no qemu-dm), <strong>PV is in between</strong> (direct kernel boot but the PV-port boot ABI is involved).</p>
+<h3 id="what-dom0-itself-runs-as">What dom0 itself runs as<a hidden class="anchor" aria-hidden="true" href="#what-dom0-itself-runs-as">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>Era</th>
+          <th>dom0 mode</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>2003–2013</td>
+          <td>Always PV (Xen had no other option for dom0)</td>
+      </tr>
+      <tr>
+          <td>2013–2018</td>
+          <td>PV default, HVM optional</td>
+      </tr>
+      <tr>
+          <td>2018–present</td>
+          <td><strong>PVH default</strong> (<code>dom0=pvh</code> on Xen command line), PV available for compatibility</td>
+      </tr>
+  </tbody>
+</table>
+<p>The modern <code>dom0=pvh</code> boot setting is what most production deployments use today. dom0 itself is also a domain that goes through the construction flow above — except that for dom0, the <em>hypervisor</em> runs the construction (<code>construct_dom0</code>), because there&rsquo;s no <code>libxl</code> yet.</p>
+<h3 id="management-hypercall-surface">Management hypercall surface<a hidden class="anchor" aria-hidden="true" href="#management-hypercall-surface">#</a></h3>
+<p><code>__HYPERVISOR_domctl</code> (#36, dispatch at <code>xen/common/domctl.c:275</code>, 901 LoC total) is the lifecycle entry point. The op codes (<code>XEN_DOMCTL_createdomain</code>, <code>pausedomain</code>, <code>unpausedomain</code>, <code>destroydomain</code>, <code>max_vcpus</code>, <code>setvcpuaffinity</code>, <code>scheduler_op</code>, <code>getdomaininfo</code>, <code>setvcpucontext</code>, &hellip;) cover every action a control-plane tool needs.</p>
+<p><code>__HYPERVISOR_sysctl</code> (#35) is the partner for <em>system-wide</em> operations (querying physinfo, listing all domains, cpupool management).</p>
+<p>Access control: <code>do_domctl</code> checks <code>is_control_domain(d)</code> — only <code>dom0</code> (or a domain with the matching XSM privilege) may invoke. This is the privileged-control-domain enforcement point.</p>
+<p>All mode-agnostic — <code>domctl</code> semantics are the same for PV / HVM / PVH targets.</p>
+<h3 id="live-migration">Live migration<a hidden class="anchor" aria-hidden="true" href="#live-migration">#</a></h3>
+<p><a href="/virtualization/vm-management/">§08</a>&rsquo;s pre-copy live migration discussion is essentially <a href="https://www.usenix.org/conference/nsdi-05/live-migration-virtual-machines">Live Migration of Virtual Machines</a> (Clark et al., NSDI 2005), describing live migration in Xen. The mechanism still lives in <code>tools/libs/guest/</code> (the save/restore library) and on the hypervisor side in the log-dirty page-table machinery in <code>xen/arch/x86/mm/</code>.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">source host                                           destination host
+</span></span><span class="line"><span class="cl">───────────                                           ────────────────
+</span></span><span class="line"><span class="cl">1. xl migrate connects to destination&#39;s xl
+</span></span><span class="line"><span class="cl">                                ◀──────── handshake ─────────▶
+</span></span><span class="line"><span class="cl">2. enable log-dirty mode on migrating domain&#39;s
+</span></span><span class="line"><span class="cl">   second-stage PT (every guest write sets a dirty bit)
+</span></span><span class="line"><span class="cl">3. read all memory pages, stream to destination
+</span></span><span class="line"><span class="cl">                                ──── memory pages ────▶ allocate, populate
+</span></span><span class="line"><span class="cl">4. query dirty bitmap; re-send dirty pages
+</span></span><span class="line"><span class="cl">                                ──── dirty pages ─────▶
+</span></span><span class="line"><span class="cl">   repeat until dirty rate falls below threshold
+</span></span><span class="line"><span class="cl">5. pause domain
+</span></span><span class="line"><span class="cl">6. send residual dirty pages + vCPU state + device state
+</span></span><span class="line"><span class="cl">                                ──── final delta ─────▶
+</span></span><span class="line"><span class="cl">                                                       7. restore vCPU state,
+</span></span><span class="line"><span class="cl">                                                          unpause → domain resumes
+</span></span><span class="line"><span class="cl">8. destroy paused domain on source
+</span></span></code></pre></div><p>Mode-specific complications:</p>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Memory dirty tracking</td>
+          <td>log-dirty on shadow</td>
+          <td>log-dirty on shadow or EPT</td>
+          <td>log-dirty on EPT</td>
+      </tr>
+      <tr>
+          <td>vCPU state save</td>
+          <td><code>vcpu.arch.guest_context</code></td>
+          <td>VMCS state + HVM context</td>
+          <td>VMCS state + HVM context</td>
+      </tr>
+      <tr>
+          <td>Device state save</td>
+          <td>Frontend state via xenstore</td>
+          <td>qemu-dm device state + frontend state</td>
+          <td>Frontend state only</td>
+      </tr>
+      <tr>
+          <td>Special complications</td>
+          <td>None</td>
+          <td>qemu-dm state must serialize; some emulated devices can&rsquo;t migrate cleanly</td>
+          <td>None</td>
+      </tr>
+      <tr>
+          <td>Migration difficulty</td>
+          <td>Medium</td>
+          <td>Hard</td>
+          <td>Easy</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>PVH is easiest to live-migrate</strong>, HVM is hardest (qemu-dm state is the problem child), PV is in between.</p>
+<p>Convergence corner cases match the <a href="/virtualization/vm-management/">§08</a> discussion: dirty rate exceeding copy rate (Xen rate-limits the guest&rsquo;s CPU), pass-through device state (no good story; this is why migratable guests prefer virtio over pass-through), network attachment (destination must be on same L2 segment or use overlay networking).</p>
+<h3 id="nested-virtualization">Nested virtualization<a hidden class="anchor" aria-hidden="true" href="#nested-virtualization">#</a></h3>
+<p>Xen can run as a guest on another hypervisor, and Xen can host another hypervisor as a guest. Both directions work; the hairy case is the latter.</p>
+<p><strong>Xen as L0 hosting L1 hypervisor</strong>: L1 (HVM mode) issues VMX instructions (<code>VMREAD</code>, <code>VMWRITE</code>, <code>VMLAUNCH</code>, <code>VMRESUME</code>); L0 intercepts and emulates, maintaining a shadow VMCS that represents the composed L0+L1 controls. When an L2 guest exits, hardware exits to L0; L0 decides whether L0 itself handles it or forwards to L1. Code in <code>xen/arch/x86/hvm/nestedhvm.c</code> and <code>xen/arch/x86/hvm/vmx/vvmx.c</code>.</p>
+<p>Cost is substantial — every L2 exit potentially costs two L0 exits plus L1&rsquo;s handler. Intel added <strong>VMCS Shadowing</strong> (Haswell, 2013) to make some L1 VMREAD/VMWRITE skip the L0 exit. Matters in production for cloud-in-cloud (AWS metal instances, CI inside VMs inside containers).</p>
+<h3 id="arm-and-risc-v--what-changes">ARM and RISC-V — what changes<a hidden class="anchor" aria-hidden="true" href="#arm-and-risc-v--what-changes">#</a></h3>
+<p>Xen has a mature ARM port (<code>xen/arch/arm/</code>) and an in-progress RISC-V port (<code>xen/arch/riscv/</code>). Reading them clarifies what&rsquo;s <em>architectural</em> versus what&rsquo;s <em>x86 quirk</em>.</p>
+<p><strong>ARM</strong>:</p>
+<ul>
+<li>Runs at <strong>EL2</strong> — the dedicated hypervisor exception level. No &ldquo;ring -1&rdquo; hack; the architecture was designed with virtualization in place from the start, satisfying Popek-Goldberg by construction.</li>
+<li><strong>Stage-2 translation</strong> is the direct equivalent of EPT/NPT.</li>
+<li><strong>No PV mode</strong> — there&rsquo;s no virtualizability gap to paravirtualize around. ARM port supports HVM-equivalent and PVH-equivalent only.</li>
+<li><strong>GIC virtualization</strong>: hardware support for guest interrupt delivery (GICv2 VIRT, GICv3+).</li>
+<li><strong>PSCI</strong>: ARM&rsquo;s standardized power-management hypercall interface used both for real power management and as the guest&rsquo;s CPU-on/off interface.</li>
+</ul>
+<p><strong>RISC-V</strong> (newer, started ~2022): mirrors ARM, uses H-extension&rsquo;s HS-mode (equivalent of EL2) and G-stage paging (equivalent of Stage-2/EPT).</p>
+<p><strong>The implication for reading the codebase</strong>: many things that look like &ldquo;Xen architecture&rdquo; in <code>xen/common/</code> are actually &ldquo;Xen-x86 quirks&rdquo; exported to common code. The ARM port had to clean up some abstractions; reading <code>xen/arch/arm/</code> after <code>xen/arch/x86/</code> clarifies which parts of the design are essential and which are historical.</p>
+<hr>
+<h2 id="modechapter-matrix">Mode×chapter matrix<a hidden class="anchor" aria-hidden="true" href="#modechapter-matrix">#</a></h2>
+<p>The entire design space in one table, for reference:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Topic</th>
+          <th>PV</th>
+          <th>HVM</th>
+          <th>PVH</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong>§04 guest exec mode</strong></td>
+          <td>Deprivileged ring, x86 exceptions</td>
+          <td>VMX non-root, VM-exits</td>
+          <td>VMX non-root, VM-exits</td>
+      </tr>
+      <tr>
+          <td><strong>§04 sensitive-op handling</strong></td>
+          <td>Hypercalls (designed in)</td>
+          <td>Emulate on exit</td>
+          <td>Emulate on exit</td>
+      </tr>
+      <tr>
+          <td><strong>§04 hardware needed</strong></td>
+          <td>None</td>
+          <td>VT-x/AMD-V</td>
+          <td>VT-x/AMD-V + EPT/NPT</td>
+      </tr>
+      <tr>
+          <td><strong>§05 memory translation</strong></td>
+          <td>Direct PT, hypercall-validated</td>
+          <td>Shadow PT or EPT/NPT</td>
+          <td>EPT/NPT only</td>
+      </tr>
+      <tr>
+          <td><strong>§05 page tables managed by</strong></td>
+          <td>Guest, validated per update</td>
+          <td>Xen (shadow) or guest (EPT)</td>
+          <td>Guest natively</td>
+      </tr>
+      <tr>
+          <td><strong>§06 emulated devices</strong></td>
+          <td>None</td>
+          <td>Yes (qemu-dm)</td>
+          <td>None</td>
+      </tr>
+      <tr>
+          <td><strong>§06 PV split drivers</strong></td>
+          <td>Yes (only option)</td>
+          <td>Yes (with PV drivers in guest)</td>
+          <td>Yes (default)</td>
+      </tr>
+      <tr>
+          <td><strong>§06 device passthrough</strong></td>
+          <td>Yes</td>
+          <td>Yes</td>
+          <td>Yes</td>
+      </tr>
+      <tr>
+          <td><strong>§07 hypercall instruction</strong></td>
+          <td><code>int 0x82</code> / syscall</td>
+          <td><code>vmcall</code> / <code>vmmcall</code></td>
+          <td><code>vmcall</code> / <code>vmmcall</code></td>
+      </tr>
+      <tr>
+          <td><strong>§07 event channels</strong></td>
+          <td>✓</td>
+          <td>✓</td>
+          <td>✓</td>
+      </tr>
+      <tr>
+          <td><strong>§07 grant tables</strong></td>
+          <td>✓</td>
+          <td>✓</td>
+          <td>✓</td>
+      </tr>
+      <tr>
+          <td><strong>§07 I/O rings</strong></td>
+          <td>✓</td>
+          <td>✓ (via PV drivers)</td>
+          <td>✓</td>
+      </tr>
+      <tr>
+          <td><strong>§08 construction complexity</strong></td>
+          <td>Medium (PV bootloader, PT setup)</td>
+          <td>High (firmware + qemu-dm)</td>
+          <td>Low (direct kernel)</td>
+      </tr>
+      <tr>
+          <td><strong>§08 dom0 default today</strong></td>
+          <td>Legacy</td>
+          <td>n/a</td>
+          <td>Modern default</td>
+      </tr>
+      <tr>
+          <td><strong>§08 live-migration difficulty</strong></td>
+          <td>Medium</td>
+          <td>Hard (qemu-dm state)</td>
+          <td>Easy</td>
+      </tr>
+      <tr>
+          <td><strong>TCB inclusion in dom0</strong></td>
+          <td>Linux kernel</td>
+          <td>Linux kernel + qemu-dm</td>
+          <td>Linux kernel</td>
+      </tr>
+  </tbody>
+</table>
+<p>One-sentence summaries of the three modes:</p>
+<ul>
+<li><strong>PV</strong> — guest is ported to call Xen via hypercalls; no hardware support needed; per-event cost low but guest must be ported.</li>
+<li><strong>HVM</strong> — unmodified guest sees real-looking hardware via VT-x + per-VM qemu-dm; broadest compatibility, largest TCB.</li>
+<li><strong>PVH</strong> — cooperating guest uses VT-x for execution but skips firmware and qemu-dm; modern default, smallest TCB among the three.</li>
+</ul>
+<p>Trajectory: <strong>PV was Xen&rsquo;s answer to &ldquo;x86 isn&rsquo;t virtualizable&rdquo;, HVM was the answer to &ldquo;we need to run Windows&rdquo;, PVH is the modern synthesis that takes hardware support for granted and discards the legacy compatibility tax.</strong></p>
+<h2 id="source-map">Source map<a hidden class="anchor" aria-hidden="true" href="#source-map">#</a></h2>
+<p>For navigation when reading the tree:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">xen/                                       — the hypervisor binary
+</span></span><span class="line"><span class="cl">├── common/
+</span></span><span class="line"><span class="cl">│   ├── domain.c           (2557 LoC)      — domain_create at line 873, domain_kill at 1305
+</span></span><span class="line"><span class="cl">│   ├── domctl.c            (901 LoC)      — do_domctl at 275: control-plane HC dispatch
+</span></span><span class="line"><span class="cl">│   ├── event_channel.c    (1822 LoC)      — do_event_channel_op at 1354
+</span></span><span class="line"><span class="cl">│   ├── grant_table.c      (4412 LoC)      — do_grant_table_op at 3639
+</span></span><span class="line"><span class="cl">│   ├── memory.c                           — XENMEM_populate_physmap at 1561
+</span></span><span class="line"><span class="cl">│   ├── ioreq.c                            — HVM device-emulation routing
+</span></span><span class="line"><span class="cl">│   └── sched/
+</span></span><span class="line"><span class="cl">│       ├── core.c                         — scheduler-pluggable framework
+</span></span><span class="line"><span class="cl">│       ├── credit.c       (2315 LoC)      — original credit scheduler
+</span></span><span class="line"><span class="cl">│       ├── credit2.c      (4273 LoC)      — modern default (design comment at 75)
+</span></span><span class="line"><span class="cl">│       ├── null.c         (1073 LoC)      — static pinning
+</span></span><span class="line"><span class="cl">│       ├── arinc653.c                     — ARINC 653 time-partitioned
+</span></span><span class="line"><span class="cl">│       ├── rt.c                           — real-time
+</span></span><span class="line"><span class="cl">│       └── cpupool.c                      — pCPU pools with per-pool sched
+</span></span><span class="line"><span class="cl">├── arch/
+</span></span><span class="line"><span class="cl">│   ├── x86/
+</span></span><span class="line"><span class="cl">│   │   ├── setup.c                        — __start_xen at 1134; construct_dom0 call at 1122
+</span></span><span class="line"><span class="cl">│   │   ├── dom0_build.c                   — construct_dom0 at 630
+</span></span><span class="line"><span class="cl">│   │   ├── traps.c                        — PV exception entry, do_general_protection
+</span></span><span class="line"><span class="cl">│   │   ├── mm.c           (6572 LoC)      — PV memory: do_mmu_update at 3984, get_page_type
+</span></span><span class="line"><span class="cl">│   │   ├── mm/
+</span></span><span class="line"><span class="cl">│   │   │   ├── shadow/                    — shadow page tables (legacy HVM)
+</span></span><span class="line"><span class="cl">│   │   │   └── p2m*.c                     — second-stage (EPT/NPT) maps
+</span></span><span class="line"><span class="cl">│   │   └── hvm/
+</span></span><span class="line"><span class="cl">│   │       ├── hvm.c      (5463 LoC)      — arch-generic HVM logic
+</span></span><span class="line"><span class="cl">│   │       ├── vmx/vmx.c  (5043 LoC)      — Intel VMX path; vmx_vmexit_handler at 4176
+</span></span><span class="line"><span class="cl">│   │       └── svm/svm.c                  — AMD SVM path
+</span></span><span class="line"><span class="cl">│   ├── arm/                               — ARM port (EL2)
+</span></span><span class="line"><span class="cl">│   ├── riscv/                             — RISC-V port (H-extension)
+</span></span><span class="line"><span class="cl">│   └── ppc/                               — PowerPC port
+</span></span><span class="line"><span class="cl">└── include/
+</span></span><span class="line"><span class="cl">    ├── xen/sched.h                        — struct vcpu at 179, struct domain at 315
+</span></span><span class="line"><span class="cl">    └── public/                            — hypercall ABI (consumed by guests/tools)
+</span></span><span class="line"><span class="cl">        ├── xen.h                          — __HYPERVISOR_* numbers
+</span></span><span class="line"><span class="cl">        ├── event_channel.h                — EVTCHNOP_*
+</span></span><span class="line"><span class="cl">        ├── grant_table.h                  — GNTTABOP_*
+</span></span><span class="line"><span class="cl">        ├── memory.h                       — XENMEM_*
+</span></span><span class="line"><span class="cl">        ├── domctl.h                       — XEN_DOMCTL_*
+</span></span><span class="line"><span class="cl">        └── io/                            — I/O ring message formats
+</span></span><span class="line"><span class="cl">            ├── ring.h                     — ring macros
+</span></span><span class="line"><span class="cl">            ├── netif.h                    — netfront/netback messages
+</span></span><span class="line"><span class="cl">            └── blkif.h                    — blkfront/blkback messages
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">tools/                                     — dom0 user-space (not in hypervisor TCB)
+</span></span><span class="line"><span class="cl">├── libs/light/                            — libxl: high-level domain management
+</span></span><span class="line"><span class="cl">├── libs/guest/                            — libxg: low-level loading and save/restore
+</span></span><span class="line"><span class="cl">│   ├── xg_dom_*loader.c                   — boot-protocol-specific image loaders
+</span></span><span class="line"><span class="cl">│   └── xg_sr_*.c                          — save/restore for live migration
+</span></span><span class="line"><span class="cl">├── libs/ctrl/                             — libxc: hypercall wrappers
+</span></span><span class="line"><span class="cl">├── xl/                                    — the xl CLI
+</span></span><span class="line"><span class="cl">└── qemu-xen/                              — fork of QEMU as Xen&#39;s HVM device model
+</span></span></code></pre></div>
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="https://anekoique.github.io/tags/virtualization/">Virtualization</a></li>
+      <li><a href="https://anekoique.github.io/tags/hypervisor/">Hypervisor</a></li>
+      <li><a href="https://anekoique.github.io/tags/systems/">Systems</a></li>
+      <li><a href="https://anekoique.github.io/tags/xen/">Xen</a></li>
+    </ul>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://anekoique.github.io/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

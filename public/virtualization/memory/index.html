@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Virtualization Series 05 — Memory Virtualization | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="Virtualization, Hypervisor, Systems, Memory">
+<meta name="description" content="From shadow page tables to nested paging (EPT, NPT), with the overcommit toolbox: demand allocation, ballooning, content-based page sharing, hypervisor swapping, idle-memory taxation.">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="https://anekoique.github.io/virtualization/memory/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="https://anekoique.github.io/img/head.jpg">
+<link rel="apple-touch-icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="mask-icon" href="https://anekoique.github.io/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://anekoique.github.io/virtualization/memory/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="https://anekoique.github.io/js/toc-sidebar.js" defer></script><script src="https://anekoique.github.io/js/starfield.js" defer></script><meta property="og:url" content="https://anekoique.github.io/virtualization/memory/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="Virtualization Series 05 — Memory Virtualization">
+  <meta property="og:description" content="From shadow page tables to nested paging (EPT, NPT), with the overcommit toolbox: demand allocation, ballooning, content-based page sharing, hypervisor swapping, idle-memory taxation.">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="virtualization">
+    <meta property="article:published_time" content="2026-05-17T14:00:00+08:00">
+    <meta property="article:modified_time" content="2026-05-17T14:00:00+08:00">
+    <meta property="article:tag" content="Virtualization">
+    <meta property="article:tag" content="Hypervisor">
+    <meta property="article:tag" content="Systems">
+    <meta property="article:tag" content="Memory">
+      <meta property="og:see_also" content="https://anekoique.github.io/posts/virtualization-survey/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/systems/xen/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/history/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/foundations/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/taxonomy/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/vmm-architecture/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/cpu/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Virtualization Series 05 — Memory Virtualization">
+<meta name="twitter:description" content="From shadow page tables to nested paging (EPT, NPT), with the overcommit toolbox: demand allocation, ballooning, content-based page sharing, hypervisor swapping, idle-memory taxation.">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Virtualization Series",
+      "item": "https://anekoique.github.io/virtualization/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Virtualization Series 05 — Memory Virtualization",
+      "item": "https://anekoique.github.io/virtualization/memory/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Virtualization Series 05 — Memory Virtualization",
+  "name": "Virtualization Series 05 — Memory Virtualization",
+  "description": "From shadow page tables to nested paging (EPT, NPT), with the overcommit toolbox: demand allocation, ballooning, content-based page sharing, hypervisor swapping, idle-memory taxation.",
+  "keywords": [
+    "Virtualization", "Hypervisor", "Systems", "Memory"
+  ],
+  "articleBody": "The memory model, introduced in §03, maintains the relationship between guest-physical and host-physical addresses. This section examines how that relationship is built, kept consistent as the guest manages its own page tables, and stretched when a VMM presents more memory than it has.\nThree concerns dominate any memory-virtualization design: address translation (how a guest virtual address ends up as a host physical address), memory protection (how the VMM ensures one guest cannot reach another’s memory), and memory management (how the VMM allocates, reclaims, and overcommits host memory across guests). The first two are tightly coupled to CPU virtualization — every page-table update is, in effect, a sensitive operation — and have followed the same arc from software emulation to hardware assistance. The third is largely independent and has its own substantial body of techniques.\nThe Address-Translation Problem A guest OS believes it manages two-level translation: virtual addresses (used by guest code) to physical addresses (the “machine” addresses, as the guest sees them). The VMM knows there is a third level underneath: the guest’s “physical” addresses are actually guest-physical addresses, and the real memory the hardware accesses lives at host-physical addresses.\nguest-virtual ──guest PT──→ guest-physical ──VMM mapping──→ host-physical The hardware MMU walks page tables and produces an address. By default, it walks the guest’s page tables and produces what the guest believes are physical addresses — but those addresses do not correspond to anything real. The VMM must arrange, somehow, that the address eventually used by hardware is a host physical address. There are two basic strategies: translate in software by maintaining shadow tables, or translate in hardware by adding a second translation stage.\nShadow Page Tables Before hardware support arrived, the VMM closed the gap with shadow page tables. The idea is that the hardware MMU is configured to walk a third, VMM-maintained set of page tables — the shadow tables — that already encode the composition (guest-virtual → guest-physical → host-physical). The guest’s own page tables are inert from the hardware’s point of view; they exist only as data the VMM consults.\nMaintenance is the difficult part. Every guest update to its page tables must be reflected in the shadow tables, or the guest will run with stale translations. Two implementation strategies appear:\nTrap on every guest page-table write. The VMM marks guest page-table pages read-only. Any guest write traps; the VMM emulates the write, recomputes the affected shadow entries, and resumes. This is correct but slow — page-table updates are common, and each one becomes a VM-exit. Lazy synchronization on TLB flush. The VMM allows guest writes to proceed but invalidates affected shadow entries lazily; when the guest issues an INVLPG or MOV CR3 (which it must, to make its updates visible), the VMM uses that as a synchronization point. Cheaper in the common case, more complex to implement correctly. In either strategy, the VMM holds one shadow table per guest address space — and a multi-process guest creates many of them. Shadow tables together can consume a substantial fraction of the host memory the VMM has at its disposal, and the maintenance cost dominates kernel-heavy workloads.\nThe technique was the only option for first-generation hardware-assisted x86, and the engineering cost of getting it right (correctness under self-modifying page tables, large guests, NUMA) is one of the reasons hypervisor codebases of the era were so large.\nNested Paging: EPT and NPT Intel’s Extended Page Tables (EPT) and AMD’s Nested Page Tables (NPT) add a second hardware-walked translation layer. The first layer is the guest’s own page tables, walked exactly as on bare hardware; the second is a VMM-managed table that translates guest-physical to host-physical.\nguest-virtual ──guest PT──→ guest-physical ──EPT/NPT──→ host-physical ↑ ↑ guest manages VMM manages The transformative consequence: the guest can manage its own page tables without the VMM ever intervening. A guest write to its page tables, a MOV CR3, an INVLPG — all execute natively. The VMM is involved only when the second-stage mapping itself must change: when memory is added or removed from the guest, when overcommit policies reclaim a page, when a guest physical page is migrated to a different host page.\nThe cost paid is a longer page-table walk. A first-stage walk through a four-level guest page table now requires, at each step, a second-stage walk through the EPT to translate that step’s guest-physical address. In the worst case, a single TLB-miss costs roughly 24 memory accesses for 4-level paging (5 walk stages × ~4 EPT lookups per stage, plus the final guest-leaf reads), and ~36 for 5-level paging on Ice Lake and later. Hardware mitigates this with TLBs that cache the composed translation and with paging-structure caches that retain partial walks, so steady-state performance remains close to native.\nThe shadow vs. nested trade-off in summary:\nShadow Page Tables Nested Paging (EPT / NPT) Hardware support none required required Translation walks one (composed in shadow) two-stage Guest PT updates every update intercepted none intercepted TLB pressure shadow entries cached normally TLB caches composed translation Memory overhead one shadow PT per guest address space one second-stage PT per guest Steady-state cost high on page-table-heavy workloads low; bounded by walk depth Code complexity in VMM high low Nested paging is the dominant approach today. It is one of the most consequential single hardware additions to virtualization since VT-x itself: it eliminated an entire class of VM-exit, simplified VMM code substantially, and is a precondition for several other optimizations (live migration with fast page tracking, transparent overcommit) that build on the second-stage table.\nMemory Protection Between Guests With nested paging, the second-stage table is also the protection mechanism. Every guest-physical access goes through the EPT/NPT walk; the VMM controls which host-physical pages are mapped, and any guest access outside its allocated set faults to the VMM. There is no separate protection mechanism — the translation table is the protection.\nFor DMA, the analogous mechanism is the IOMMU (Intel VT-d, AMD-Vi). DMA-capable devices issue addresses on the bus; the IOMMU translates those addresses through a separate page table the VMM controls, faulting on any access outside the guest’s allocation. Without the IOMMU, a guest with direct device access could direct the device to DMA anywhere in physical memory; with it, the device is confined exactly as the guest is. IOMMUs are treated in more detail in §06 I/O Virtualization.\nProtection in the absence of either nested paging or an IOMMU — the regime of the early 2000s — required substantially more software work and substantially more trust in the device drivers. Both extensions can be read as the hardware moving the protection mechanism out of the VMM’s software path and into silicon.\nMemory Management and Overcommit The address-translation mechanisms above answer how a guest’s memory is mapped. They do not answer how much memory each guest gets, where the host memory comes from, or what happens when the host runs short. These are policy questions, and they are where most of the operational interest in memory virtualization lives.\nA naive VMM allocates host memory for each guest at creation and never reclaims it. The host can then host only as many guests as fit literally in physical memory. Overcommit is the practice of presenting more guest memory than the host has, on the bet that not all guests will use all their memory at the same time. Several mechanisms implement overcommit, each with its own trade-offs.\nDemand allocation The simplest overcommit mechanism: do not allocate host pages until the guest actually touches them. A guest that requests 8 GB but uses 1 GB in steady state costs 1 GB of host memory.\nDemand allocation interacts cleanly with nested paging: the second-stage table starts empty for guest pages that have never been touched, and an EPT fault on first touch lets the VMM allocate a host page on demand. The mechanism is essentially the same as demand paging in a conventional OS.\nBallooning A guest cooperatively returning memory it isn’t using is a much better signal than the VMM guessing. Ballooning installs a small driver in the guest that, on request from the VMM, allocates pages from within the guest and tells the VMM their guest-physical addresses. The VMM then unmaps and reclaims those host pages.\nguest VMM ┌────────────┐ ┌────────────┐ │ free pages │ │ │ │ ┌────────┐ │ inflate │ │ │ │balloon │ │ ──────────→ │ reclaim │ │ │ driver │ │ │ host pages │ │ └────────┘ │ │ │ └────────────┘ └────────────┘ The guest’s own memory subsystem decides which pages to give up — typically clean cache pages, since they are cheapest to evict. From the guest’s perspective, the balloon driver simply holds memory; the guest’s own allocator routes around it. From the host’s perspective, the corresponding host pages are freed and can be given to other guests.\nBallooning is the most-used overcommit mechanism in production. Its limitations are that it requires guest cooperation (an unmodified guest will not have a balloon driver) and that it is slow — a balloon takes seconds to inflate enough to free non-trivial amounts of memory.\nContent-based page sharing If two guests have identical page contents — common when many guests run the same OS image — the host can keep one copy and map both guests’ translations to it. Content-based page sharing scans memory in the background, hashes pages to find candidates, and uses copy-on-write to merge identical pages.\nguest A ──┐ ├──→ shared host page (read-only, COW) guest B ──┘ Sharing was historically a substantial win: in a VDI deployment with 50 identical Windows VMs, a substantial fraction of memory could be shared. Two factors have eroded the gain. First, address-space layout randomization makes identical-content matches less likely. Second, side-channel attacks that exploit the timing differences between COW faults and ordinary page accesses (variants of the rowhammer / cache-attack family) have led to sharing being disabled by default on most hosts, especially in multi-tenant settings.\nHypervisor-level swapping When all the cooperative mechanisms above fail to free enough memory, the VMM can swap guest pages to host disk — exactly as an OS swaps process pages. This is the last-resort mechanism: it is slow, the VMM does not know which guest pages are hot (the guest’s own paging decisions are invisible), and a swap-storm can collapse aggregate performance across all guests on the host.\nProduction hypervisors use a tiered policy: balloon first, share second, swap only as a last resort.\nIdle-memory taxation A subtler mechanism, introduced by VMware ESX: charge guests for active memory at the normal rate, but charge them more for memory they are not actively using. The guest’s true working set is observable to the VMM via access bits in the second-stage page tables; idle memory is the difference. Taxing idle memory creates economic pressure on guests with overlarge allocations to balloon down voluntarily, even before the host is under pressure.\nSummary Mechanism Granularity Guest cooperation Latency Notes Demand allocation per-page none microsec the universal baseline Ballooning per-page (guest-chosen) required (driver) seconds preferred reclaim mechanism Page sharing per-page (background) none seconds (scanning) often disabled for security Hypervisor swapping per-page none millisec (disk) last resort Idle taxation indirect none (mechanism); required (response) indirect (triggers ballooning) shapes ballooning decisions The mechanisms compose: demand allocation and ballooning are universal; sharing is opportunistic; swapping is emergency. The policy that combines them is one of the most carefully tuned components of any production hypervisor.\nOther Concerns A few topics are worth naming briefly, even though detailed treatment is out of scope.\nHuge pages. Backing guest memory with 2 MB or 1 GB host pages reduces TLB pressure substantially — a particularly large effect with nested paging, where each second-stage walk is itself shorter when the second stage uses huge pages. Most production hypervisors prefer huge pages by default. NUMA. Guest memory should be allocated on the NUMA node closest to the pCPUs running the guest’s vCPUs. A VMM that allocates carelessly can leave a guest’s vCPU on one node and its memory on another, paying remote-access cost on every miss. vNUMA — presenting a NUMA topology to the guest itself — is the next step, letting the guest’s own allocator make NUMA-aware decisions. Memory hotplug. Adding or removing memory from a running guest, used by elastic cloud services. Implementation is straightforward when the guest cooperates (most modern OSes do); complications arise around device DMA and live migration. What this section established A VMM virtualizes memory along three axes. Address translation is performed either by VMM-maintained shadow tables (legacy) or by hardware-walked nested paging (EPT / NPT, the modern default), which eliminates the need to intercept guest page-table updates and is one of the largest single performance gains in the history of x86 virtualization. Protection is provided by the second-stage table for CPU accesses and by the IOMMU for DMA. Management — the policy by which host memory is allocated to and reclaimed from guests — combines demand allocation, ballooning, content-based sharing, swapping, and idle-memory taxation, composed into a tiered policy that responds to host pressure progressively.\nThe next section, I/O Virtualization, takes up the third component of the VMM and examines how virtual devices are presented to the guest, how I/O is routed to and from real hardware, and how the design space spans full emulation, paravirtual rings (virtio), and direct device pass-through.\n",
+  "wordCount" : "2215",
+  "inLanguage": "en",
+  "datePublished": "2026-05-17T14:00:00+08:00",
+  "dateModified": "2026-05-17T14:00:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://anekoique.github.io/virtualization/memory/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://anekoique.github.io/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://anekoique.github.io/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://anekoique.github.io/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://anekoique.github.io/">Home</a>&nbsp;»&nbsp;<a href="https://anekoique.github.io/virtualization/">Virtualization Series</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Virtualization Series 05 — Memory Virtualization
+    </h1>
+    <div class="post-meta"><span title='2026-05-17 14:00:00 +0800 CST'>2026-05-17</span>&nbsp;·&nbsp;11 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#the-address-translation-problem" aria-label="The Address-Translation Problem">The Address-Translation Problem</a></li>
+                <li>
+                    <a href="#shadow-page-tables" aria-label="Shadow Page Tables">Shadow Page Tables</a></li>
+                <li>
+                    <a href="#nested-paging-ept-and-npt" aria-label="Nested Paging: EPT and NPT">Nested Paging: EPT and NPT</a></li>
+                <li>
+                    <a href="#memory-protection-between-guests" aria-label="Memory Protection Between Guests">Memory Protection Between Guests</a></li>
+                <li>
+                    <a href="#memory-management-and-overcommit" aria-label="Memory Management and Overcommit">Memory Management and Overcommit</a><ul>
+                    
+                <li>
+                    <a href="#demand-allocation" aria-label="Demand allocation">Demand allocation</a></li>
+                <li>
+                    <a href="#ballooning" aria-label="Ballooning">Ballooning</a></li>
+                <li>
+                    <a href="#content-based-page-sharing" aria-label="Content-based page sharing">Content-based page sharing</a></li>
+                <li>
+                    <a href="#hypervisor-level-swapping" aria-label="Hypervisor-level swapping">Hypervisor-level swapping</a></li>
+                <li>
+                    <a href="#idle-memory-taxation" aria-label="Idle-memory taxation">Idle-memory taxation</a></li>
+                <li>
+                    <a href="#summary" aria-label="Summary">Summary</a></li></ul>
+                </li>
+                <li>
+                    <a href="#other-concerns" aria-label="Other Concerns">Other Concerns</a></li>
+                <li>
+                    <a href="#what-this-section-established" aria-label="What this section established">What this section established</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><p>The memory model, introduced in <a href="/virtualization/vmm-architecture/">§03</a>, maintains the relationship between <strong>guest-physical</strong> and <strong>host-physical</strong> addresses. This section examines how that relationship is built, kept consistent as the guest manages its own page tables, and stretched when a VMM presents more memory than it has.</p>
+<p>Three concerns dominate any memory-virtualization design: <strong>address translation</strong> (how a guest virtual address ends up as a host physical address), <strong>memory protection</strong> (how the VMM ensures one guest cannot reach another&rsquo;s memory), and <strong>memory management</strong> (how the VMM allocates, reclaims, and overcommits host memory across guests). The first two are tightly coupled to CPU virtualization — every page-table update is, in effect, a sensitive operation — and have followed the same arc from software emulation to hardware assistance. The third is largely independent and has its own substantial body of techniques.</p>
+<h2 id="the-address-translation-problem">The Address-Translation Problem<a hidden class="anchor" aria-hidden="true" href="#the-address-translation-problem">#</a></h2>
+<p>A guest OS believes it manages two-level translation: virtual addresses (used by guest code) to physical addresses (the &ldquo;machine&rdquo; addresses, as the guest sees them). The VMM knows there is a third level underneath: the guest&rsquo;s &ldquo;physical&rdquo; addresses are actually <em>guest-physical</em> addresses, and the real memory the hardware accesses lives at <em>host-physical</em> addresses.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest-virtual  ──guest PT──→  guest-physical  ──VMM mapping──→  host-physical
+</span></span></code></pre></div><p>The hardware MMU walks page tables and produces an address. By default, it walks the guest&rsquo;s page tables and produces what the <em>guest</em> believes are physical addresses — but those addresses do not correspond to anything real. The VMM must arrange, somehow, that the address eventually used by hardware is a <em>host</em> physical address. There are two basic strategies: translate in software by maintaining shadow tables, or translate in hardware by adding a second translation stage.</p>
+<h2 id="shadow-page-tables">Shadow Page Tables<a hidden class="anchor" aria-hidden="true" href="#shadow-page-tables">#</a></h2>
+<p>Before hardware support arrived, the VMM closed the gap with <strong>shadow page tables</strong>. The idea is that the hardware MMU is configured to walk a third, VMM-maintained set of page tables — the <em>shadow</em> tables — that already encode the composition (<code>guest-virtual → guest-physical → host-physical</code>). The guest&rsquo;s own page tables are inert from the hardware&rsquo;s point of view; they exist only as data the VMM consults.</p>
+<p>Maintenance is the difficult part. Every guest update to its page tables must be reflected in the shadow tables, or the guest will run with stale translations. Two implementation strategies appear:</p>
+<ul>
+<li><strong>Trap on every guest page-table write.</strong> The VMM marks guest page-table pages read-only. Any guest write traps; the VMM emulates the write, recomputes the affected shadow entries, and resumes. This is correct but slow — page-table updates are common, and each one becomes a VM-exit.</li>
+<li><strong>Lazy synchronization on TLB flush.</strong> The VMM allows guest writes to proceed but invalidates affected shadow entries lazily; when the guest issues an <code>INVLPG</code> or <code>MOV CR3</code> (which it must, to make its updates visible), the VMM uses that as a synchronization point. Cheaper in the common case, more complex to implement correctly.</li>
+</ul>
+<p>In either strategy, the VMM holds one shadow table per guest address space — and a multi-process guest creates many of them. Shadow tables together can consume a substantial fraction of the host memory the VMM has at its disposal, and the maintenance cost dominates kernel-heavy workloads.</p>
+<p>The technique was the only option for first-generation hardware-assisted x86, and the engineering cost of getting it right (correctness under self-modifying page tables, large guests, NUMA) is one of the reasons hypervisor codebases of the era were so large.</p>
+<h2 id="nested-paging-ept-and-npt">Nested Paging: EPT and NPT<a hidden class="anchor" aria-hidden="true" href="#nested-paging-ept-and-npt">#</a></h2>
+<p>Intel&rsquo;s <strong>Extended Page Tables (EPT)</strong> and AMD&rsquo;s <strong>Nested Page Tables (NPT)</strong> add a second hardware-walked translation layer. The first layer is the guest&rsquo;s own page tables, walked exactly as on bare hardware; the second is a VMM-managed table that translates guest-physical to host-physical.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest-virtual ──guest PT──→ guest-physical ──EPT/NPT──→ host-physical
+</span></span><span class="line"><span class="cl">                  ↑                              ↑
+</span></span><span class="line"><span class="cl">            guest manages                  VMM manages
+</span></span></code></pre></div><p>The transformative consequence: <strong>the guest can manage its own page tables without the VMM ever intervening.</strong> A guest write to its page tables, a <code>MOV CR3</code>, an <code>INVLPG</code> — all execute natively. The VMM is involved only when the second-stage mapping itself must change: when memory is added or removed from the guest, when overcommit policies reclaim a page, when a guest physical page is migrated to a different host page.</p>
+<p>The cost paid is a longer page-table walk. A first-stage walk through a four-level guest page table now requires, at each step, a second-stage walk through the EPT to translate that step&rsquo;s guest-physical address. In the worst case, a single TLB-miss costs roughly <strong>24 memory accesses</strong> for 4-level paging (5 walk stages × ~4 EPT lookups per stage, plus the final guest-leaf reads), and <strong>~36</strong> for 5-level paging on Ice Lake and later. Hardware mitigates this with TLBs that cache the composed translation and with paging-structure caches that retain partial walks, so steady-state performance remains close to native.</p>
+<p>The shadow vs. nested trade-off in summary:</p>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>Shadow Page Tables</th>
+          <th>Nested Paging (EPT / NPT)</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Hardware support</td>
+          <td>none required</td>
+          <td>required</td>
+      </tr>
+      <tr>
+          <td>Translation walks</td>
+          <td>one (composed in shadow)</td>
+          <td>two-stage</td>
+      </tr>
+      <tr>
+          <td>Guest PT updates</td>
+          <td>every update intercepted</td>
+          <td>none intercepted</td>
+      </tr>
+      <tr>
+          <td>TLB pressure</td>
+          <td>shadow entries cached normally</td>
+          <td>TLB caches composed translation</td>
+      </tr>
+      <tr>
+          <td>Memory overhead</td>
+          <td>one shadow PT per guest address space</td>
+          <td>one second-stage PT per guest</td>
+      </tr>
+      <tr>
+          <td>Steady-state cost</td>
+          <td>high on page-table-heavy workloads</td>
+          <td>low; bounded by walk depth</td>
+      </tr>
+      <tr>
+          <td>Code complexity in VMM</td>
+          <td>high</td>
+          <td>low</td>
+      </tr>
+  </tbody>
+</table>
+<p>Nested paging is the dominant approach today. It is one of the most consequential single hardware additions to virtualization since VT-x itself: it eliminated an entire class of VM-exit, simplified VMM code substantially, and is a precondition for several other optimizations (live migration with fast page tracking, transparent overcommit) that build on the second-stage table.</p>
+<h2 id="memory-protection-between-guests">Memory Protection Between Guests<a hidden class="anchor" aria-hidden="true" href="#memory-protection-between-guests">#</a></h2>
+<p>With nested paging, the second-stage table is also the protection mechanism. Every guest-physical access goes through the EPT/NPT walk; the VMM controls which host-physical pages are mapped, and any guest access outside its allocated set faults to the VMM. There is no separate protection mechanism — the translation table <em>is</em> the protection.</p>
+<p>For DMA, the analogous mechanism is the <strong>IOMMU</strong> (Intel VT-d, AMD-Vi). DMA-capable devices issue addresses on the bus; the IOMMU translates those addresses through a separate page table the VMM controls, faulting on any access outside the guest&rsquo;s allocation. Without the IOMMU, a guest with direct device access could direct the device to DMA anywhere in physical memory; with it, the device is confined exactly as the guest is. IOMMUs are treated in more detail in <a href="/virtualization/io/">§06 I/O Virtualization</a>.</p>
+<p>Protection in the absence of either nested paging or an IOMMU — the regime of the early 2000s — required substantially more software work and substantially more trust in the device drivers. Both extensions can be read as the hardware moving the protection mechanism out of the VMM&rsquo;s software path and into silicon.</p>
+<h2 id="memory-management-and-overcommit">Memory Management and Overcommit<a hidden class="anchor" aria-hidden="true" href="#memory-management-and-overcommit">#</a></h2>
+<p>The address-translation mechanisms above answer <em>how</em> a guest&rsquo;s memory is mapped. They do not answer <em>how much</em> memory each guest gets, where the host memory comes from, or what happens when the host runs short. These are policy questions, and they are where most of the operational interest in memory virtualization lives.</p>
+<p>A naive VMM allocates host memory for each guest at creation and never reclaims it. The host can then host only as many guests as fit literally in physical memory. <strong>Overcommit</strong> is the practice of presenting more guest memory than the host has, on the bet that not all guests will use all their memory at the same time. Several mechanisms implement overcommit, each with its own trade-offs.</p>
+<h3 id="demand-allocation">Demand allocation<a hidden class="anchor" aria-hidden="true" href="#demand-allocation">#</a></h3>
+<p>The simplest overcommit mechanism: do not allocate host pages until the guest actually touches them. A guest that requests 8 GB but uses 1 GB in steady state costs 1 GB of host memory.</p>
+<p>Demand allocation interacts cleanly with nested paging: the second-stage table starts empty for guest pages that have never been touched, and an EPT fault on first touch lets the VMM allocate a host page on demand. The mechanism is essentially the same as demand paging in a conventional OS.</p>
+<h3 id="ballooning">Ballooning<a hidden class="anchor" aria-hidden="true" href="#ballooning">#</a></h3>
+<p>A guest cooperatively returning memory it isn&rsquo;t using is a much better signal than the VMM guessing. <strong>Ballooning</strong> installs a small driver in the guest that, on request from the VMM, allocates pages from within the guest and tells the VMM their guest-physical addresses. The VMM then unmaps and reclaims those host pages.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">       guest                       VMM
+</span></span><span class="line"><span class="cl">   ┌────────────┐             ┌────────────┐
+</span></span><span class="line"><span class="cl">   │ free pages │             │            │
+</span></span><span class="line"><span class="cl">   │ ┌────────┐ │  inflate    │            │
+</span></span><span class="line"><span class="cl">   │ │balloon │ │ ──────────→ │ reclaim    │
+</span></span><span class="line"><span class="cl">   │ │ driver │ │             │ host pages │
+</span></span><span class="line"><span class="cl">   │ └────────┘ │             │            │
+</span></span><span class="line"><span class="cl">   └────────────┘             └────────────┘
+</span></span></code></pre></div><p>The guest&rsquo;s own memory subsystem decides which pages to give up — typically clean cache pages, since they are cheapest to evict. From the guest&rsquo;s perspective, the balloon driver simply holds memory; the guest&rsquo;s own allocator routes around it. From the host&rsquo;s perspective, the corresponding host pages are freed and can be given to other guests.</p>
+<p>Ballooning is the most-used overcommit mechanism in production. Its limitations are that it requires guest cooperation (an unmodified guest will not have a balloon driver) and that it is slow — a balloon takes seconds to inflate enough to free non-trivial amounts of memory.</p>
+<h3 id="content-based-page-sharing">Content-based page sharing<a hidden class="anchor" aria-hidden="true" href="#content-based-page-sharing">#</a></h3>
+<p>If two guests have identical page contents — common when many guests run the same OS image — the host can keep one copy and map both guests&rsquo; translations to it. <strong>Content-based page sharing</strong> scans memory in the background, hashes pages to find candidates, and uses copy-on-write to merge identical pages.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest A ──┐
+</span></span><span class="line"><span class="cl">          ├──→ shared host page (read-only, COW)
+</span></span><span class="line"><span class="cl">guest B ──┘
+</span></span></code></pre></div><p>Sharing was historically a substantial win: in a VDI deployment with 50 identical Windows VMs, a substantial fraction of memory could be shared. Two factors have eroded the gain. First, address-space layout randomization makes identical-content matches less likely. Second, side-channel attacks that exploit the timing differences between COW faults and ordinary page accesses (variants of the rowhammer / cache-attack family) have led to sharing being disabled by default on most hosts, especially in multi-tenant settings.</p>
+<h3 id="hypervisor-level-swapping">Hypervisor-level swapping<a hidden class="anchor" aria-hidden="true" href="#hypervisor-level-swapping">#</a></h3>
+<p>When all the cooperative mechanisms above fail to free enough memory, the VMM can swap guest pages to host disk — exactly as an OS swaps process pages. This is the last-resort mechanism: it is slow, the VMM does not know which guest pages are hot (the guest&rsquo;s own paging decisions are invisible), and a swap-storm can collapse aggregate performance across all guests on the host.</p>
+<p>Production hypervisors use a tiered policy: balloon first, share second, swap only as a last resort.</p>
+<h3 id="idle-memory-taxation">Idle-memory taxation<a hidden class="anchor" aria-hidden="true" href="#idle-memory-taxation">#</a></h3>
+<p>A subtler mechanism, introduced by VMware ESX: charge guests for <em>active</em> memory at the normal rate, but charge them more for memory they are not actively using. The guest&rsquo;s true working set is observable to the VMM via access bits in the second-stage page tables; idle memory is the difference. Taxing idle memory creates economic pressure on guests with overlarge allocations to balloon down voluntarily, even before the host is under pressure.</p>
+<h3 id="summary">Summary<a hidden class="anchor" aria-hidden="true" href="#summary">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>Mechanism</th>
+          <th>Granularity</th>
+          <th>Guest cooperation</th>
+          <th>Latency</th>
+          <th>Notes</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Demand allocation</td>
+          <td>per-page</td>
+          <td>none</td>
+          <td>microsec</td>
+          <td>the universal baseline</td>
+      </tr>
+      <tr>
+          <td>Ballooning</td>
+          <td>per-page (guest-chosen)</td>
+          <td>required (driver)</td>
+          <td>seconds</td>
+          <td>preferred reclaim mechanism</td>
+      </tr>
+      <tr>
+          <td>Page sharing</td>
+          <td>per-page (background)</td>
+          <td>none</td>
+          <td>seconds (scanning)</td>
+          <td>often disabled for security</td>
+      </tr>
+      <tr>
+          <td>Hypervisor swapping</td>
+          <td>per-page</td>
+          <td>none</td>
+          <td>millisec (disk)</td>
+          <td>last resort</td>
+      </tr>
+      <tr>
+          <td>Idle taxation</td>
+          <td>indirect</td>
+          <td>none (mechanism); required (response)</td>
+          <td>indirect (triggers ballooning)</td>
+          <td>shapes ballooning decisions</td>
+      </tr>
+  </tbody>
+</table>
+<p>The mechanisms compose: demand allocation and ballooning are universal; sharing is opportunistic; swapping is emergency. The policy that combines them is one of the most carefully tuned components of any production hypervisor.</p>
+<h2 id="other-concerns">Other Concerns<a hidden class="anchor" aria-hidden="true" href="#other-concerns">#</a></h2>
+<p>A few topics are worth naming briefly, even though detailed treatment is out of scope.</p>
+<ul>
+<li><strong>Huge pages.</strong> Backing guest memory with 2 MB or 1 GB host pages reduces TLB pressure substantially — a particularly large effect with nested paging, where each second-stage walk is itself shorter when the second stage uses huge pages. Most production hypervisors prefer huge pages by default.</li>
+<li><strong>NUMA.</strong> Guest memory should be allocated on the NUMA node closest to the pCPUs running the guest&rsquo;s vCPUs. A VMM that allocates carelessly can leave a guest&rsquo;s vCPU on one node and its memory on another, paying remote-access cost on every miss. vNUMA — presenting a NUMA topology to the guest itself — is the next step, letting the guest&rsquo;s own allocator make NUMA-aware decisions.</li>
+<li><strong>Memory hotplug.</strong> Adding or removing memory from a running guest, used by elastic cloud services. Implementation is straightforward when the guest cooperates (most modern OSes do); complications arise around device DMA and live migration.</li>
+</ul>
+<h2 id="what-this-section-established">What this section established<a hidden class="anchor" aria-hidden="true" href="#what-this-section-established">#</a></h2>
+<p>A VMM virtualizes memory along three axes. Address translation is performed either by VMM-maintained shadow tables (legacy) or by hardware-walked nested paging (EPT / NPT, the modern default), which eliminates the need to intercept guest page-table updates and is one of the largest single performance gains in the history of x86 virtualization. Protection is provided by the second-stage table for CPU accesses and by the IOMMU for DMA. Management — the policy by which host memory is allocated to and reclaimed from guests — combines demand allocation, ballooning, content-based sharing, swapping, and idle-memory taxation, composed into a tiered policy that responds to host pressure progressively.</p>
+<p>The next section, <a href="/virtualization/io/">I/O Virtualization</a>, takes up the third component of the VMM and examines how virtual devices are presented to the guest, how I/O is routed to and from real hardware, and how the design space spans full emulation, paravirtual rings (<code>virtio</code>), and direct device pass-through.</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="https://anekoique.github.io/tags/virtualization/">Virtualization</a></li>
+      <li><a href="https://anekoique.github.io/tags/hypervisor/">Hypervisor</a></li>
+      <li><a href="https://anekoique.github.io/tags/systems/">Systems</a></li>
+      <li><a href="https://anekoique.github.io/tags/memory/">Memory</a></li>
+    </ul>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://anekoique.github.io/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>I/O on Anekoique&#39;s Blog</title>
+    <link>https://anekoique.github.io/tags/i/o/</link>
+    <description>Recent content in I/O on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.160.1</generator>
+    <language>en</language>
+    <lastBuildDate>Sun, 17 May 2026 13:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/tags/i/o/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Series 06 — I/O Virtualization</title>
+      <link>https://anekoique.github.io/virtualization/io/</link>
+      <pubDate>Sun, 17 May 2026 13:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/io/</guid>
+      <description>Full device emulation vs paravirtual (virtio + vhost) vs direct assignment (SR-IOV). The order-of-magnitude performance spread, the role of IOMMU, APICv, and posted interrupts, and how all three coexist in production.</description>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Virtualization Series 09 — Performance and Overhead | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="Virtualization, Hypervisor, Systems, Performance">
+<meta name="description" content="What virtualization actually costs on modern hardware. CPU, memory, I/O, scheduling, and memory-pressure overhead components, and the residual costs that two decades of hardware extensions have not eliminated.">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="https://anekoique.github.io/virtualization/performance/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="https://anekoique.github.io/img/head.jpg">
+<link rel="apple-touch-icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="mask-icon" href="https://anekoique.github.io/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://anekoique.github.io/virtualization/performance/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="https://anekoique.github.io/js/toc-sidebar.js" defer></script><script src="https://anekoique.github.io/js/starfield.js" defer></script><meta property="og:url" content="https://anekoique.github.io/virtualization/performance/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="Virtualization Series 09 — Performance and Overhead">
+  <meta property="og:description" content="What virtualization actually costs on modern hardware. CPU, memory, I/O, scheduling, and memory-pressure overhead components, and the residual costs that two decades of hardware extensions have not eliminated.">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="virtualization">
+    <meta property="article:published_time" content="2026-05-17T10:00:00+08:00">
+    <meta property="article:modified_time" content="2026-05-17T10:00:00+08:00">
+    <meta property="article:tag" content="Virtualization">
+    <meta property="article:tag" content="Hypervisor">
+    <meta property="article:tag" content="Systems">
+    <meta property="article:tag" content="Performance">
+      <meta property="og:see_also" content="https://anekoique.github.io/posts/virtualization-survey/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/systems/xen/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/history/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/foundations/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/taxonomy/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/vmm-architecture/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/cpu/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Virtualization Series 09 — Performance and Overhead">
+<meta name="twitter:description" content="What virtualization actually costs on modern hardware. CPU, memory, I/O, scheduling, and memory-pressure overhead components, and the residual costs that two decades of hardware extensions have not eliminated.">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Virtualization Series",
+      "item": "https://anekoique.github.io/virtualization/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Virtualization Series 09 — Performance and Overhead",
+      "item": "https://anekoique.github.io/virtualization/performance/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Virtualization Series 09 — Performance and Overhead",
+  "name": "Virtualization Series 09 — Performance and Overhead",
+  "description": "What virtualization actually costs on modern hardware. CPU, memory, I/O, scheduling, and memory-pressure overhead components, and the residual costs that two decades of hardware extensions have not eliminated.",
+  "keywords": [
+    "Virtualization", "Hypervisor", "Systems", "Performance"
+  ],
+  "articleBody": "Earlier sections introduced the cost components of individual virtualization mechanisms — VM-exit cost in §04, page-walk cost in §05, the I/O performance gap in §06, the boundary-crossing cost in §07, the migration downtime number in §08. This section pulls those threads together and asks the question they all bear on: what does virtualization actually cost, in aggregate, and where does the cost come from?\nThe question matters because it sets the baseline against which any alternative isolation mechanism — language-level, hardware-encrypted, or otherwise — must be measured: if traditional virtualization has driven its overhead down to a few percent on most workloads, the bar for “improvement” is not the once-substantial costs of first-generation VT-x but the close-to-native steady state of contemporary KVM. It also surfaces the sources of the residual overhead, which are the parts of virtualization that a different mechanism might or might not reduce.\nThe Anatomy of Overhead The overhead a virtualized workload pays relative to running on bare metal can be decomposed into a small number of components. The components are largely independent — a workload can be CPU-overhead-bound, I/O-overhead-bound, or memory-overhead-bound — and the dominant component depends on the workload, not on the VMM.\nCPU overhead CPU overhead is the cost of running guest instructions through the virtualization layer. On modern hardware-assisted x86, the components are:\nVM-exit cost for sensitive operations the VMM still mediates. Hundreds to low thousands of cycles per exit, multiplied by exits per second. State save/restore on each exit/entry pair. Built into VM-exit cost above. Two-stage page-walk cost on TLB misses. Up to 4× more expensive than a single-stage walk in the worst case, mitigated by TLB caching. Pipeline and microarchitectural disturbance. Difficult to measure but real; cache pressure from VMM code, branch predictor pollution, TLB invalidation. For workloads that touch sensitive state rarely (steady-state user-space compute), the steady-state overhead is in the low single digits of percent. For workloads that touch sensitive state often (kernel-heavy code, frequent IPC, fork/exec storms), it can reach 10–20% and occasionally more.\nThe historical trajectory is steeply downward. First-generation VT-x with shadow page tables imposed 10–30% overhead on MMU-intensive workloads (the range varies substantially per workload — VMware’s published measurements show some workloads at near-zero shadow overhead and others above 50%); with EPT, VPID, APICv, and posted interrupts, the same workloads typically run within 2–5%. The headline result of the past decade is that for most CPU-bound workloads, the question “is this VM or bare metal” can no longer be answered by performance.\nMemory overhead Memory overhead has two components:\nPer-VM fixed cost. Each VM requires data structures in the VMM (vCPU state, second-stage page tables, device-model state). For a general-purpose VMM, this is tens of megabytes per VM; for a microVM (Firecracker), it can be under 5 MB. Translation-walk cost. Treated above under CPU overhead; the second-stage walk uses additional memory bandwidth for page-table reads, particularly under TLB pressure. The translation-walk cost is often the larger of the two. Workloads with poor TLB locality — large working sets, irregular access patterns, kernel-heavy code — pay it disproportionately. Backing guest memory with huge pages (2 MB or 1 GB) reduces the walk depth at both stages and is one of the most common production tunings.\nI/O overhead I/O overhead is the most variable component and the most-discussed in deployment contexts. The variation depends almost entirely on the I/O technique chosen:\nTechnique Throughput vs. native Latency overhead Full emulation 10–30% 10×–100× Virtio (user-space backend) 60–80% 2×–5× Virtio + vhost (kernel backend) 80–95% 1.5×–3× SR-IOV / pass-through \u003e95% within a few percent These figures are typical for 10 GbE network workloads circa 2015; ranges depend significantly on packet size, NIC speed, and CPU. Modern vhost-user with DPDK can match SR-IOV on bandwidth-bound workloads, while full emulation drops below 10% on 25/40/100 GbE. Small-packet PPS measurements widen the gap further. Storage workloads show qualitatively similar patterns. The wide range is driven by exit-rate differences: full emulation incurs an exit per register access, virtio amortizes exits across many requests, vhost eliminates the user-kernel round trip, and SR-IOV eliminates the VMM from the data path entirely.\nThe historical trajectory in I/O has been driven by moving the VMM out of the data path, not by making the VMM faster. The fastest paths today (DPDK + vhost-user, SR-IOV, NVMe pass-through) are fast precisely because they don’t go through the VMM at all on the steady-state path.\nScheduling overhead A virtualized workload competes for pCPU time with other workloads on the same host. The result is scheduling overhead — added latency from queueing, jitter from preemption, and the lock-holder preemption pathology described in §04. These costs do not show up in microbenchmarks of single-VM workloads but dominate the experience of latency-sensitive applications in multi-tenant environments.\nMitigations exist: CPU pinning, dedicated CPUs (Kubernetes’ cpuManagerPolicy=static, AWS dedicated cores), no-overcommit configurations. Each trades density for predictability.\nMemory-pressure overhead When a host is at memory pressure, the overcommit mechanisms of §05 kick in: ballooning frees guest memory cooperatively (slow); page sharing reclaims duplicates (slower); swapping pages out (much slower). Workloads that hit memory pressure pay overhead that bears no relation to their own behaviour — they pay because other guests on the host are using memory.\nThis is one of the largest sources of unpredictability in cloud workloads, and the reason memory overcommit is often disabled in performance-critical deployments.\nWhat Drives the Residual Overhead Hardware extensions over the past two decades have eliminated most of the avoidable overhead. What remains divides cleanly into a small number of categories:\nMediation that cannot be eliminated. A small set of guest operations genuinely require VMM intervention (some MSR writes, some interrupt-controller operations, the configuration path of every device). These costs can be reduced (APICv, VMCS shadowing) but not removed. Translation cost. The two-stage page walk imposes a fundamental cost on TLB misses that no amount of hardware optimization eliminates entirely. Huge pages reduce the cost; they do not remove it. Boundary-crossing cost on I/O. Even with virtio + vhost, a notification still costs something, and the receiver still pays a context switch. Polling eliminates this at the cost of CPU; there is no zero-cost option. Cache and TLB pollution from co-tenants. Other guests on the same host evict your cache lines and your TLB entries. This cost is invisible in single-tenant benchmarks and often dominant in production. It is fundamentally a hardware-resource-sharing cost, not a virtualization cost — but virtualization is what enables the sharing. The first three are the “virtualization tax” properly so called: costs that exist because the workload is virtualized. The fourth is a multi-tenancy cost that virtualization happens to enable.\nHow Alternative Isolation Mechanisms Compare When evaluating any alternative to hardware-isolated VMs — language-level isolation (RedLeaf, Theseus), confidential computing (SEV, TDX, CCA), or hybrid designs — the meaningful comparison is per-component: for each piece of the residual overhead above, does the alternative do better, the same, or worse than the hardware mechanism it replaces?\nFor language-level isolation, the pattern that emerges from RedLeaf-style and Singularity-style work is:\nMediation cost. A language boundary does not require a VM-exit; a function call across a language-checked boundary costs effectively nothing. Operations that traditional virtualization mediates because the hardware boundary requires it become free. Strong potential win. Translation cost. If only cooperating language-checked guests are supported, no second-stage translation is required for compatibility — language safety bounds memory access directly. TLB-miss cost drops back to single-stage. Strong potential win — but only for guests that opt into the model. Boundary-crossing cost on I/O. A typed channel between guest and device backend can transfer ownership of a buffer with a function call. If the type system can prove the transfer is safe, no runtime check is needed. Strong potential win. Cache and TLB pollution. Unchanged. This is a hardware-sharing cost, not a virtualization cost; nothing about the isolation mechanism changes it. Neutral. The expected pattern: language-level isolation can reduce or eliminate the per-event mediation costs that traditional virtualization has been chipping away at for two decades, but cannot affect the costs that come from sharing physical resources. The performance argument is therefore strongest on workloads that are mediation-heavy — kernel-heavy code, frequent cross-component IPC, fine-grained device interaction — and weakest on workloads that are dominated by raw resource use.\nFor confidential computing, the trade-off is inverse: encryption adds per-event cost (a fact that the SEV-SNP and TDX overhead measurements bear out) in exchange for a stronger threat model. The two mechanisms address different parts of the design space and can in principle compose.\nWhat this section established Virtualization overhead, on modern hardware, decomposes into CPU, memory, I/O, scheduling, and memory-pressure components. CPU and memory overhead have been driven down to single-digit percentages on most workloads through hardware extensions; I/O overhead spans an order of magnitude depending on technique, with the fastest paths achieving near-native performance by removing the VMM from the data path; scheduling and memory-pressure overheads are environmental and mostly outside any individual VMM’s control.\nThe residual virtualization overhead falls into a small number of categories: mediation costs that cannot be entirely eliminated, two-stage translation cost, I/O boundary-crossing cost, and cache/TLB pollution from co-tenants. These are the costs against which any alternative isolation mechanism must be measured. Three of the four are at least conceivably reducible by language-level isolation; the fourth (resource-sharing pollution) is not.\nThis closes the core sequence of the survey. From the Popek–Goldberg condition onward, each section has named one part of the design space and the mechanisms by which traditional systems have populated it. Read together, the chapters describe a mature engineering discipline whose costs have been driven down to the point where the dominant pressures — TCB size, cold-start latency, density — are no longer about making virtualization faster but about changing what virtualization is for. That is the trajectory the History chapter traces from the outside.\n",
+  "wordCount" : "1642",
+  "inLanguage": "en",
+  "datePublished": "2026-05-17T10:00:00+08:00",
+  "dateModified": "2026-05-17T10:00:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://anekoique.github.io/virtualization/performance/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://anekoique.github.io/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://anekoique.github.io/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://anekoique.github.io/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://anekoique.github.io/">Home</a>&nbsp;»&nbsp;<a href="https://anekoique.github.io/virtualization/">Virtualization Series</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Virtualization Series 09 — Performance and Overhead
+    </h1>
+    <div class="post-meta"><span title='2026-05-17 10:00:00 +0800 CST'>2026-05-17</span>&nbsp;·&nbsp;8 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#the-anatomy-of-overhead" aria-label="The Anatomy of Overhead">The Anatomy of Overhead</a><ul>
+                    
+                <li>
+                    <a href="#cpu-overhead" aria-label="CPU overhead">CPU overhead</a></li>
+                <li>
+                    <a href="#memory-overhead" aria-label="Memory overhead">Memory overhead</a></li>
+                <li>
+                    <a href="#io-overhead" aria-label="I/O overhead">I/O overhead</a></li>
+                <li>
+                    <a href="#scheduling-overhead" aria-label="Scheduling overhead">Scheduling overhead</a></li>
+                <li>
+                    <a href="#memory-pressure-overhead" aria-label="Memory-pressure overhead">Memory-pressure overhead</a></li></ul>
+                </li>
+                <li>
+                    <a href="#what-drives-the-residual-overhead" aria-label="What Drives the Residual Overhead">What Drives the Residual Overhead</a></li>
+                <li>
+                    <a href="#how-alternative-isolation-mechanisms-compare" aria-label="How Alternative Isolation Mechanisms Compare">How Alternative Isolation Mechanisms Compare</a></li>
+                <li>
+                    <a href="#what-this-section-established" aria-label="What this section established">What this section established</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><p>Earlier sections introduced the cost components of individual virtualization mechanisms — VM-exit cost in <a href="/virtualization/cpu/">§04</a>, page-walk cost in <a href="/virtualization/memory/">§05</a>, the I/O performance gap in <a href="/virtualization/io/">§06</a>, the boundary-crossing cost in <a href="/virtualization/communication/">§07</a>, the migration downtime number in <a href="/virtualization/vm-management/">§08</a>. This section pulls those threads together and asks the question they all bear on: <em>what does virtualization actually cost, in aggregate, and where does the cost come from?</em></p>
+<p>The question matters because it sets the baseline against which any alternative isolation mechanism — language-level, hardware-encrypted, or otherwise — must be measured: if traditional virtualization has driven its overhead down to a few percent on most workloads, the bar for &ldquo;improvement&rdquo; is not the once-substantial costs of first-generation VT-x but the close-to-native steady state of contemporary KVM. It also surfaces the <em>sources</em> of the residual overhead, which are the parts of virtualization that a different mechanism might or might not reduce.</p>
+<h2 id="the-anatomy-of-overhead">The Anatomy of Overhead<a hidden class="anchor" aria-hidden="true" href="#the-anatomy-of-overhead">#</a></h2>
+<p>The overhead a virtualized workload pays relative to running on bare metal can be decomposed into a small number of components. The components are largely independent — a workload can be CPU-overhead-bound, I/O-overhead-bound, or memory-overhead-bound — and the dominant component depends on the workload, not on the VMM.</p>
+<h3 id="cpu-overhead">CPU overhead<a hidden class="anchor" aria-hidden="true" href="#cpu-overhead">#</a></h3>
+<p>CPU overhead is the cost of running guest instructions through the virtualization layer. On modern hardware-assisted x86, the components are:</p>
+<ul>
+<li><strong>VM-exit cost</strong> for sensitive operations the VMM still mediates. Hundreds to low thousands of cycles per exit, multiplied by exits per second.</li>
+<li><strong>State save/restore</strong> on each exit/entry pair. Built into VM-exit cost above.</li>
+<li><strong>Two-stage page-walk cost</strong> on TLB misses. Up to 4× more expensive than a single-stage walk in the worst case, mitigated by TLB caching.</li>
+<li><strong>Pipeline and microarchitectural disturbance.</strong> Difficult to measure but real; cache pressure from VMM code, branch predictor pollution, TLB invalidation.</li>
+</ul>
+<p>For workloads that touch sensitive state rarely (steady-state user-space compute), the steady-state overhead is in the low single digits of percent. For workloads that touch sensitive state often (kernel-heavy code, frequent IPC, fork/exec storms), it can reach 10–20% and occasionally more.</p>
+<p>The historical trajectory is steeply downward. First-generation VT-x with shadow page tables imposed 10–30% overhead on MMU-intensive workloads (the range varies substantially per workload — VMware&rsquo;s published measurements show some workloads at near-zero shadow overhead and others above 50%); with EPT, VPID, APICv, and posted interrupts, the same workloads typically run within 2–5%. The headline result of the past decade is that <em>for most CPU-bound workloads, the question &ldquo;is this VM or bare metal&rdquo; can no longer be answered by performance.</em></p>
+<h3 id="memory-overhead">Memory overhead<a hidden class="anchor" aria-hidden="true" href="#memory-overhead">#</a></h3>
+<p>Memory overhead has two components:</p>
+<ul>
+<li><strong>Per-VM fixed cost.</strong> Each VM requires data structures in the VMM (vCPU state, second-stage page tables, device-model state). For a general-purpose VMM, this is tens of megabytes per VM; for a microVM (Firecracker), it can be under 5 MB.</li>
+<li><strong>Translation-walk cost.</strong> Treated above under CPU overhead; the second-stage walk uses additional memory bandwidth for page-table reads, particularly under TLB pressure.</li>
+</ul>
+<p>The translation-walk cost is often the larger of the two. Workloads with poor TLB locality — large working sets, irregular access patterns, kernel-heavy code — pay it disproportionately. Backing guest memory with huge pages (2 MB or 1 GB) reduces the walk depth at both stages and is one of the most common production tunings.</p>
+<h3 id="io-overhead">I/O overhead<a hidden class="anchor" aria-hidden="true" href="#io-overhead">#</a></h3>
+<p>I/O overhead is the most variable component and the most-discussed in deployment contexts. The variation depends almost entirely on the I/O technique chosen:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Technique</th>
+          <th>Throughput vs. native</th>
+          <th>Latency overhead</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Full emulation</td>
+          <td>10–30%</td>
+          <td>10×–100×</td>
+      </tr>
+      <tr>
+          <td>Virtio (user-space backend)</td>
+          <td>60–80%</td>
+          <td>2×–5×</td>
+      </tr>
+      <tr>
+          <td>Virtio + vhost (kernel backend)</td>
+          <td>80–95%</td>
+          <td>1.5×–3×</td>
+      </tr>
+      <tr>
+          <td>SR-IOV / pass-through</td>
+          <td>&gt;95%</td>
+          <td>within a few percent</td>
+      </tr>
+  </tbody>
+</table>
+<p>These figures are typical for 10 GbE network workloads circa 2015; ranges depend significantly on packet size, NIC speed, and CPU. Modern vhost-user with DPDK can match SR-IOV on bandwidth-bound workloads, while full emulation drops below 10% on 25/40/100 GbE. Small-packet PPS measurements widen the gap further. Storage workloads show qualitatively similar patterns. The wide range is driven by exit-rate differences: full emulation incurs an exit per register access, virtio amortizes exits across many requests, vhost eliminates the user-kernel round trip, and SR-IOV eliminates the VMM from the data path entirely.</p>
+<p>The historical trajectory in I/O has been driven by <em>moving the VMM out of the data path</em>, not by making the VMM faster. The fastest paths today (DPDK + vhost-user, SR-IOV, NVMe pass-through) are fast precisely because they don&rsquo;t go through the VMM at all on the steady-state path.</p>
+<h3 id="scheduling-overhead">Scheduling overhead<a hidden class="anchor" aria-hidden="true" href="#scheduling-overhead">#</a></h3>
+<p>A virtualized workload competes for pCPU time with other workloads on the same host. The result is <strong>scheduling overhead</strong> — added latency from queueing, jitter from preemption, and the lock-holder preemption pathology described in <a href="/virtualization/cpu/">§04</a>. These costs do not show up in microbenchmarks of single-VM workloads but dominate the experience of latency-sensitive applications in multi-tenant environments.</p>
+<p>Mitigations exist: CPU pinning, dedicated CPUs (Kubernetes&rsquo; <code>cpuManagerPolicy=static</code>, AWS dedicated cores), no-overcommit configurations. Each trades density for predictability.</p>
+<h3 id="memory-pressure-overhead">Memory-pressure overhead<a hidden class="anchor" aria-hidden="true" href="#memory-pressure-overhead">#</a></h3>
+<p>When a host is at memory pressure, the overcommit mechanisms of <a href="/virtualization/memory/">§05</a> kick in: ballooning frees guest memory cooperatively (slow); page sharing reclaims duplicates (slower); swapping pages out (much slower). Workloads that hit memory pressure pay overhead that bears no relation to their own behaviour — they pay because <em>other guests</em> on the host are using memory.</p>
+<p>This is one of the largest sources of unpredictability in cloud workloads, and the reason memory overcommit is often disabled in performance-critical deployments.</p>
+<h2 id="what-drives-the-residual-overhead">What Drives the Residual Overhead<a hidden class="anchor" aria-hidden="true" href="#what-drives-the-residual-overhead">#</a></h2>
+<p>Hardware extensions over the past two decades have eliminated most of the <em>avoidable</em> overhead. What remains divides cleanly into a small number of categories:</p>
+<ul>
+<li><strong>Mediation that cannot be eliminated.</strong> A small set of guest operations genuinely require VMM intervention (some MSR writes, some interrupt-controller operations, the configuration path of every device). These costs can be reduced (APICv, VMCS shadowing) but not removed.</li>
+<li><strong>Translation cost.</strong> The two-stage page walk imposes a fundamental cost on TLB misses that no amount of hardware optimization eliminates entirely. Huge pages reduce the cost; they do not remove it.</li>
+<li><strong>Boundary-crossing cost on I/O.</strong> Even with virtio + vhost, a notification still costs something, and the receiver still pays a context switch. Polling eliminates this at the cost of CPU; there is no zero-cost option.</li>
+<li><strong>Cache and TLB pollution from co-tenants.</strong> Other guests on the same host evict your cache lines and your TLB entries. This cost is invisible in single-tenant benchmarks and often dominant in production. It is fundamentally a hardware-resource-sharing cost, not a virtualization cost — but virtualization is what enables the sharing.</li>
+</ul>
+<p>The first three are the &ldquo;virtualization tax&rdquo; properly so called: costs that exist <em>because</em> the workload is virtualized. The fourth is a multi-tenancy cost that virtualization happens to enable.</p>
+<h2 id="how-alternative-isolation-mechanisms-compare">How Alternative Isolation Mechanisms Compare<a hidden class="anchor" aria-hidden="true" href="#how-alternative-isolation-mechanisms-compare">#</a></h2>
+<p>When evaluating any alternative to hardware-isolated VMs — language-level isolation (RedLeaf, Theseus), confidential computing (SEV, TDX, CCA), or hybrid designs — the meaningful comparison is per-component: <em>for each piece of the residual overhead above, does the alternative do better, the same, or worse than the hardware mechanism it replaces?</em></p>
+<p>For language-level isolation, the pattern that emerges from RedLeaf-style and Singularity-style work is:</p>
+<ul>
+<li><strong>Mediation cost.</strong> A language boundary does not require a VM-exit; a function call across a language-checked boundary costs effectively nothing. Operations that traditional virtualization mediates because the hardware boundary requires it become free. <em>Strong potential win.</em></li>
+<li><strong>Translation cost.</strong> If only cooperating language-checked guests are supported, no second-stage translation is required for compatibility — language safety bounds memory access directly. TLB-miss cost drops back to single-stage. <em>Strong potential win — but only for guests that opt into the model.</em></li>
+<li><strong>Boundary-crossing cost on I/O.</strong> A typed channel between guest and device backend can transfer ownership of a buffer with a function call. If the type system can prove the transfer is safe, no runtime check is needed. <em>Strong potential win.</em></li>
+<li><strong>Cache and TLB pollution.</strong> Unchanged. This is a hardware-sharing cost, not a virtualization cost; nothing about the isolation mechanism changes it. <em>Neutral.</em></li>
+</ul>
+<p>The expected pattern: language-level isolation can reduce or eliminate the per-event mediation costs that traditional virtualization has been chipping away at for two decades, but cannot affect the costs that come from sharing physical resources. The performance argument is therefore strongest on workloads that are mediation-heavy — kernel-heavy code, frequent cross-component IPC, fine-grained device interaction — and weakest on workloads that are dominated by raw resource use.</p>
+<p>For confidential computing, the trade-off is inverse: encryption adds per-event cost (a fact that the SEV-SNP and TDX overhead measurements bear out) in exchange for a stronger threat model. The two mechanisms address different parts of the design space and can in principle compose.</p>
+<h2 id="what-this-section-established">What this section established<a hidden class="anchor" aria-hidden="true" href="#what-this-section-established">#</a></h2>
+<p>Virtualization overhead, on modern hardware, decomposes into CPU, memory, I/O, scheduling, and memory-pressure components. CPU and memory overhead have been driven down to single-digit percentages on most workloads through hardware extensions; I/O overhead spans an order of magnitude depending on technique, with the fastest paths achieving near-native performance by removing the VMM from the data path; scheduling and memory-pressure overheads are environmental and mostly outside any individual VMM&rsquo;s control.</p>
+<p>The residual virtualization overhead falls into a small number of categories: mediation costs that cannot be entirely eliminated, two-stage translation cost, I/O boundary-crossing cost, and cache/TLB pollution from co-tenants. These are the costs against which any alternative isolation mechanism must be measured. Three of the four are at least conceivably reducible by language-level isolation; the fourth (resource-sharing pollution) is not.</p>
+<p>This closes the core sequence of the survey. From the <a href="/virtualization/foundations/">Popek–Goldberg condition</a> onward, each section has named one part of the design space and the mechanisms by which traditional systems have populated it. Read together, the chapters describe a mature engineering discipline whose costs have been driven down to the point where the dominant pressures — TCB size, cold-start latency, density — are no longer about <em>making virtualization faster</em> but about <em>changing what virtualization is for</em>. That is the trajectory the <a href="/virtualization/history/">History</a> chapter traces from the outside.</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="https://anekoique.github.io/tags/virtualization/">Virtualization</a></li>
+      <li><a href="https://anekoique.github.io/tags/hypervisor/">Hypervisor</a></li>
+      <li><a href="https://anekoique.github.io/tags/systems/">Systems</a></li>
+      <li><a href="https://anekoique.github.io/tags/performance/">Performance</a></li>
+    </ul>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://anekoique.github.io/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

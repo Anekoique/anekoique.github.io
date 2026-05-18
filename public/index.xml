@@ -2,73 +2,157 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Anekoique&#39;s Blog</title>
-    <link>http://localhost:1313/</link>
+    <link>https://anekoique.github.io/</link>
     <description>Recent content on Anekoique&#39;s Blog</description>
     <generator>Hugo -- 0.160.1</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 16 Apr 2026 10:25:00 +0800</lastBuildDate>
-    <atom:link href="http://localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sun, 17 May 2026 21:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Series</title>
+      <link>https://anekoique.github.io/posts/virtualization-survey/</link>
+      <pubDate>Sun, 17 May 2026 21:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/posts/virtualization-survey/</guid>
+      <description>A guided tour of traditional machine virtualization, organized as ten chapters from foundations through performance, plus per-system case studies grounded in source-code reading.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Xen</title>
+      <link>https://anekoique.github.io/virtualization/systems/xen/</link>
+      <pubDate>Sun, 17 May 2026 20:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/xen/</guid>
+      <description>Canonical paravirtualizing Type-1 hypervisor. PV/HVM/PVH modes contrasted side by side across CPU, memory, I/O, cross-domain communication, and VM management. The disaggregated shape in production form.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 00 — History</title>
+      <link>https://anekoique.github.io/virtualization/history/</link>
+      <pubDate>Sun, 17 May 2026 19:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/history/</guid>
+      <description>A historical preface to the survey, organized into five eras from IBM CP-40 (1964) through modern microVMs and language-isolated systems. Anchors each era in the papers that invented the techniques later chapters treat as ambient.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 01 — Foundations</title>
+      <link>https://anekoique.github.io/virtualization/foundations/</link>
+      <pubDate>Sun, 17 May 2026 18:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/foundations/</guid>
+      <description>What virtualization is, why it is used, and the Popek–Goldberg condition for virtualizability. Sets up the trap-and-emulate discipline that the rest of the survey treats as ambient context.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 02 — Taxonomy</title>
+      <link>https://anekoique.github.io/virtualization/taxonomy/</link>
+      <pubDate>Sun, 17 May 2026 17:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/taxonomy/</guid>
+      <description>The four largely-independent axes of VMM design: placement (Type 1 vs Type 2), guest interface (full vs paravirtual), hardware support (VT-x, EPT, IOMMU), and isolation boundary (hardware, software, language).</description>
+    </item>
+    <item>
+      <title>Virtualization Series 03 — Hypervisor Architecture</title>
+      <link>https://anekoique.github.io/virtualization/vmm-architecture/</link>
+      <pubDate>Sun, 17 May 2026 16:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/vmm-architecture/</guid>
+      <description>The recurring component set inside a VMM (vCPU, memory, device, interrupt/timer, exit handler, control plane) and the three architectural shapes (monolithic, hosted, disaggregated) they organize into.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 04 — CPU Virtualization</title>
+      <link>https://anekoique.github.io/virtualization/cpu/</link>
+      <pubDate>Sun, 17 May 2026 15:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/cpu/</guid>
+      <description>How guest code actually runs on a physical CPU: trap-and-emulate, binary translation, paravirtualization, and hardware-assisted virtualization (VT-x, AMD-V). Plus vCPU scheduling, gang scheduling, and the exit-cost story.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 05 — Memory Virtualization</title>
+      <link>https://anekoique.github.io/virtualization/memory/</link>
+      <pubDate>Sun, 17 May 2026 14:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/memory/</guid>
+      <description>From shadow page tables to nested paging (EPT, NPT), with the overcommit toolbox: demand allocation, ballooning, content-based page sharing, hypervisor swapping, idle-memory taxation.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 06 — I/O Virtualization</title>
+      <link>https://anekoique.github.io/virtualization/io/</link>
+      <pubDate>Sun, 17 May 2026 13:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/io/</guid>
+      <description>Full device emulation vs paravirtual (virtio + vhost) vs direct assignment (SR-IOV). The order-of-magnitude performance spread, the role of IOMMU, APICv, and posted interrupts, and how all three coexist in production.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 07 — Cross-Domain Communication</title>
+      <link>https://anekoique.github.io/virtualization/communication/</link>
+      <pubDate>Sun, 17 May 2026 12:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/communication/</guid>
+      <description>Hypercalls, microkernel IPC, shared-memory rings, grant tables, capabilities — the substrate every non-monolithic VMM is built on. Cost anatomy of boundary crossings and why disaggregation lives or dies by it.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 08 — VM Management and Cloud Extensions</title>
+      <link>https://anekoique.github.io/virtualization/vm-management/</link>
+      <pubDate>Sun, 17 May 2026 11:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/vm-management/</guid>
+      <description>The operational layer: lifecycle, snapshotting, pre-copy / post-copy live migration, high-availability replication (Remus), microVMs (Firecracker), and fleet orchestration. How operational requirements shape VMM architecture.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 09 — Performance and Overhead</title>
+      <link>https://anekoique.github.io/virtualization/performance/</link>
+      <pubDate>Sun, 17 May 2026 10:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/performance/</guid>
+      <description>What virtualization actually costs on modern hardware. CPU, memory, I/O, scheduling, and memory-pressure overhead components, and the residual costs that two decades of hardware extensions have not eliminated.</description>
+    </item>
     <item>
       <title>Page Cache</title>
-      <link>http://localhost:1313/posts/pagecache/</link>
+      <link>https://anekoique.github.io/posts/pagecache/</link>
       <pubDate>Thu, 16 Apr 2026 10:25:00 +0800</pubDate>
-      <guid>http://localhost:1313/posts/pagecache/</guid>
+      <guid>https://anekoique.github.io/posts/pagecache/</guid>
       <description>A deep dive into Linux Page Cache — how VFS, inode, and address_space organize cached file content, how Buffered I/O and mmap create and release cache pages, the four mmap mapping types, and the tools to observe cache hit rates.</description>
     </item>
     <item>
       <title>NUMA</title>
-      <link>http://localhost:1313/posts/numa/</link>
+      <link>https://anekoique.github.io/posts/numa/</link>
       <pubDate>Thu, 16 Apr 2026 10:20:00 +0800</pubDate>
-      <guid>http://localhost:1313/posts/numa/</guid>
+      <guid>https://anekoique.github.io/posts/numa/</guid>
       <description>Why modern multi-socket systems moved from UMA to NUMA — the FSB bottleneck, per-socket memory controllers, local vs remote access, and how Linux handles NUMA (plus the classic MySQL swap-insanity problem fixed by interleaving).</description>
     </item>
     <item>
       <title>Zero-copy</title>
-      <link>http://localhost:1313/posts/zero_copy/</link>
+      <link>https://anekoique.github.io/posts/zero_copy/</link>
       <pubDate>Thu, 16 Apr 2026 10:15:00 +0800</pubDate>
-      <guid>http://localhost:1313/posts/zero_copy/</guid>
+      <guid>https://anekoique.github.io/posts/zero_copy/</guid>
       <description>Zero-copy techniques in Linux — starting from the traditional read/write path (4 context switches, 2 DMA + 2 CPU copies) and walking through Direct I/O, mmap, sendfile, DMA gather, splice, and COW.</description>
     </item>
     <item>
       <title>Physical Memory Model</title>
-      <link>http://localhost:1313/posts/mm_model/</link>
+      <link>https://anekoique.github.io/posts/mm_model/</link>
       <pubDate>Thu, 16 Apr 2026 10:10:00 +0800</pubDate>
-      <guid>http://localhost:1313/posts/mm_model/</guid>
+      <guid>https://anekoique.github.io/posts/mm_model/</guid>
       <description>How Linux organizes physical memory — comparing FLATMEM, DISCONTIGMEM, and SPARSEMEM, and how each model implements pfn_to_page / page_to_pfn.</description>
     </item>
     <item>
       <title>Memory Consistency</title>
-      <link>http://localhost:1313/posts/mm_consistency/</link>
+      <link>https://anekoique.github.io/posts/mm_consistency/</link>
       <pubDate>Thu, 16 Apr 2026 10:05:00 +0800</pubDate>
-      <guid>http://localhost:1313/posts/mm_consistency/</guid>
+      <guid>https://anekoique.github.io/posts/mm_consistency/</guid>
       <description>Memory consistency models define which reorderings are legal. A walk through SC, TSO (x86), PSO, and relaxed models (ARM / POWER), plus the memory barriers used to enforce ordering when it matters.</description>
     </item>
     <item>
       <title>Cache Coherence</title>
-      <link>http://localhost:1313/posts/cache_coherence/</link>
+      <link>https://anekoique.github.io/posts/cache_coherence/</link>
       <pubDate>Thu, 16 Apr 2026 10:00:00 +0800</pubDate>
-      <guid>http://localhost:1313/posts/cache_coherence/</guid>
+      <guid>https://anekoique.github.io/posts/cache_coherence/</guid>
       <description>How multi-core CPUs keep a consistent view of memory — the MESI protocol, bus snooping, cache-to-cache transfers, and the store-buffer / invalid-queue optimizations (plus the memory-ordering headaches they introduce).</description>
     </item>
     <item>
       <title>Basic Mechanism of LKL and UINTR</title>
-      <link>http://localhost:1313/posts/lkl_uintr/</link>
+      <link>https://anekoique.github.io/posts/lkl_uintr/</link>
       <pubDate>Sun, 21 Sep 2025 17:08:45 +0800</pubDate>
-      <guid>http://localhost:1313/posts/lkl_uintr/</guid>
+      <guid>https://anekoique.github.io/posts/lkl_uintr/</guid>
       <description>An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.</description>
     </item>
     <item>
       <title>Hello World</title>
-      <link>http://localhost:1313/posts/hello-world/</link>
+      <link>https://anekoique.github.io/posts/hello-world/</link>
       <pubDate>Wed, 27 Aug 2025 10:00:00 +0800</pubDate>
-      <guid>http://localhost:1313/posts/hello-world/</guid>
+      <guid>https://anekoique.github.io/posts/hello-world/</guid>
       <description>Welcome to my blog — a place to collect notes on operating systems, virtualization, agents, and whatever else I end up learning.</description>
     </item>
     <item>
       <title>About Me</title>
-      <link>http://localhost:1313/about/</link>
+      <link>https://anekoique.github.io/about/</link>
       <pubDate>Tue, 28 Jan 2025 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/about/</guid>
+      <guid>https://anekoique.github.io/about/</guid>
       <description>&lt;h2 id=&#34;hi-there&#34;&gt;Hi there!&lt;/h2&gt;</description>
     </item>
   </channel>

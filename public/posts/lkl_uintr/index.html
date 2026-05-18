@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" dir="auto">
 
-<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<head><meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="robots" content="index, follow">
@@ -9,16 +9,16 @@
 <meta name="keywords" content="OS, LKL, UINTR">
 <meta name="description" content="An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.">
 <meta name="author" content="Anekoique">
-<link rel="canonical" href="http://localhost:1313/posts/lkl_uintr/">
+<link rel="canonical" href="https://anekoique.github.io/posts/lkl_uintr/">
 <link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
-<link rel="icon" href="http://localhost:1313/img/head.jpg">
-<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/img/head.jpg">
-<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/img/head.jpg">
-<link rel="apple-touch-icon" href="http://localhost:1313/img/head.jpg">
-<link rel="mask-icon" href="http://localhost:1313/img/head.jpg">
+<link rel="icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="https://anekoique.github.io/img/head.jpg">
+<link rel="apple-touch-icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="mask-icon" href="https://anekoique.github.io/img/head.jpg">
 <meta name="theme-color" content="#2e2e33">
 <meta name="msapplication-TileColor" content="#2e2e33">
-<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/lkl_uintr/">
+<link rel="alternate" hreflang="en" href="https://anekoique.github.io/posts/lkl_uintr/">
 <noscript>
     <style>
         #theme-toggle,
@@ -27,7 +27,7 @@
         }
 
     </style>
-</noscript><script src="http://localhost:1313/js/toc-sidebar.js" defer></script><script src="http://localhost:1313/js/starfield.js" defer></script><meta property="og:url" content="http://localhost:1313/posts/lkl_uintr/">
+</noscript><script src="https://anekoique.github.io/js/toc-sidebar.js" defer></script><script src="https://anekoique.github.io/js/starfield.js" defer></script><meta property="og:url" content="https://anekoique.github.io/posts/lkl_uintr/">
   <meta property="og:site_name" content="Anekoique&#39;s Blog">
   <meta property="og:title" content="Basic Mechanism of LKL and UINTR">
   <meta property="og:description" content="An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.">
@@ -53,13 +53,13 @@
       "@type": "ListItem",
       "position":  1 ,
       "name": "Posts",
-      "item": "http://localhost:1313/posts/"
+      "item": "https://anekoique.github.io/posts/"
     }, 
     {
       "@type": "ListItem",
       "position":  2 ,
       "name": "Basic Mechanism of LKL and UINTR",
-      "item": "http://localhost:1313/posts/lkl_uintr/"
+      "item": "https://anekoique.github.io/posts/lkl_uintr/"
     }
   ]
 }
@@ -85,14 +85,14 @@
   },
   "mainEntityOfPage": {
     "@type": "WebPage",
-    "@id": "http://localhost:1313/posts/lkl_uintr/"
+    "@id": "https://anekoique.github.io/posts/lkl_uintr/"
   },
   "publisher": {
     "@type": "Organization",
     "name": "Anekoique's Blog",
     "logo": {
       "@type": "ImageObject",
-      "url": "http://localhost:1313/img/head.jpg"
+      "url": "https://anekoique.github.io/img/head.jpg"
     }
   }
 }
@@ -110,7 +110,7 @@
 <header class="header">
     <nav class="nav">
         <div class="logo">
-            <a href="http://localhost:1313/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <a href="https://anekoique.github.io/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
             <div class="logo-switches">
                 <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
                     <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
@@ -136,32 +136,32 @@
         </div>
         <ul id="menu">
             <li>
-                <a href="http://localhost:1313/search/" title="Search (Alt &#43; /)" accesskey=/>
+                <a href="https://anekoique.github.io/search/" title="Search (Alt &#43; /)" accesskey=/>
                     <span>Search</span>
                 </a>
             </li>
             <li>
-                <a href="http://localhost:1313/" title="Home">
+                <a href="https://anekoique.github.io/" title="Home">
                     <span>Home</span>
                 </a>
             </li>
             <li>
-                <a href="http://localhost:1313/posts/" title="Posts">
+                <a href="https://anekoique.github.io/posts/" title="Posts">
                     <span>Posts</span>
                 </a>
             </li>
             <li>
-                <a href="http://localhost:1313/tags/" title="Tags">
+                <a href="https://anekoique.github.io/tags/" title="Tags">
                     <span>Tags</span>
                 </a>
             </li>
             <li>
-                <a href="http://localhost:1313/archives/" title="Archives">
+                <a href="https://anekoique.github.io/archives/" title="Archives">
                     <span>Archives</span>
                 </a>
             </li>
             <li>
-                <a href="http://localhost:1313/about/" title="About">
+                <a href="https://anekoique.github.io/about/" title="About">
                     <span>About</span>
                 </a>
             </li>
@@ -172,7 +172,7 @@
 
 <article class="post-single">
   <header class="post-header">
-    <div class="breadcrumbs"><a href="http://localhost:1313/">Home</a>&nbsp;»&nbsp;<a href="http://localhost:1313/posts/">Posts</a></div>
+    <div class="breadcrumbs"><a href="https://anekoique.github.io/">Home</a>&nbsp;»&nbsp;<a href="https://anekoique.github.io/posts/">Posts</a></div>
     <h1 class="post-title entry-hint-parent">
       Basic Mechanism of LKL and UINTR
     </h1>
@@ -334,17 +334,17 @@
 
   <footer class="post-footer">
     <ul class="post-tags">
-      <li><a href="http://localhost:1313/tags/os/">OS</a></li>
-      <li><a href="http://localhost:1313/tags/lkl/">LKL</a></li>
-      <li><a href="http://localhost:1313/tags/uintr/">UINTR</a></li>
+      <li><a href="https://anekoique.github.io/tags/os/">OS</a></li>
+      <li><a href="https://anekoique.github.io/tags/lkl/">LKL</a></li>
+      <li><a href="https://anekoique.github.io/tags/uintr/">UINTR</a></li>
     </ul>
 <nav class="paginav">
-  <a class="prev" href="http://localhost:1313/posts/cache_coherence/">
+  <a class="prev" href="https://anekoique.github.io/posts/cache_coherence/">
     <span class="title">« Prev</span>
     <br>
     <span>Cache Coherence</span>
   </a>
-  <a class="next" href="http://localhost:1313/posts/hello-world/">
+  <a class="next" href="https://anekoique.github.io/posts/hello-world/">
     <span class="title">Next »</span>
     <br>
     <span>Hello World</span>
@@ -437,7 +437,7 @@
     </main>
     
 <footer class="footer">
-        <span>&copy; 2026 <a href="http://localhost:1313/">Anekoique&#39;s Blog</a></span> · 
+        <span>&copy; 2026 <a href="https://anekoique.github.io/">Anekoique&#39;s Blog</a></span> · 
 
     <span>
         Powered by

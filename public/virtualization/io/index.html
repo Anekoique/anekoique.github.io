@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Virtualization Series 06 — I/O Virtualization | Anekoique&#39;s Blog</title>
+<meta name="keywords" content="Virtualization, Hypervisor, Systems, I/O">
+<meta name="description" content="Full device emulation vs paravirtual (virtio &#43; vhost) vs direct assignment (SR-IOV). The order-of-magnitude performance spread, the role of IOMMU, APICv, and posted interrupts, and how all three coexist in production.">
+<meta name="author" content="Anekoique">
+<link rel="canonical" href="https://anekoique.github.io/virtualization/io/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="16x16" href="https://anekoique.github.io/img/head.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="https://anekoique.github.io/img/head.jpg">
+<link rel="apple-touch-icon" href="https://anekoique.github.io/img/head.jpg">
+<link rel="mask-icon" href="https://anekoique.github.io/img/head.jpg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://anekoique.github.io/virtualization/io/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript><script src="https://anekoique.github.io/js/toc-sidebar.js" defer></script><script src="https://anekoique.github.io/js/starfield.js" defer></script><meta property="og:url" content="https://anekoique.github.io/virtualization/io/">
+  <meta property="og:site_name" content="Anekoique&#39;s Blog">
+  <meta property="og:title" content="Virtualization Series 06 — I/O Virtualization">
+  <meta property="og:description" content="Full device emulation vs paravirtual (virtio &#43; vhost) vs direct assignment (SR-IOV). The order-of-magnitude performance spread, the role of IOMMU, APICv, and posted interrupts, and how all three coexist in production.">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="virtualization">
+    <meta property="article:published_time" content="2026-05-17T13:00:00+08:00">
+    <meta property="article:modified_time" content="2026-05-17T13:00:00+08:00">
+    <meta property="article:tag" content="Virtualization">
+    <meta property="article:tag" content="Hypervisor">
+    <meta property="article:tag" content="Systems">
+    <meta property="article:tag" content="I/O">
+      <meta property="og:see_also" content="https://anekoique.github.io/posts/virtualization-survey/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/systems/xen/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/history/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/foundations/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/taxonomy/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/vmm-architecture/">
+      <meta property="og:see_also" content="https://anekoique.github.io/virtualization/cpu/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Virtualization Series 06 — I/O Virtualization">
+<meta name="twitter:description" content="Full device emulation vs paravirtual (virtio &#43; vhost) vs direct assignment (SR-IOV). The order-of-magnitude performance spread, the role of IOMMU, APICv, and posted interrupts, and how all three coexist in production.">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Virtualization Series",
+      "item": "https://anekoique.github.io/virtualization/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Virtualization Series 06 — I/O Virtualization",
+      "item": "https://anekoique.github.io/virtualization/io/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Virtualization Series 06 — I/O Virtualization",
+  "name": "Virtualization Series 06 — I\/O Virtualization",
+  "description": "Full device emulation vs paravirtual (virtio + vhost) vs direct assignment (SR-IOV). The order-of-magnitude performance spread, the role of IOMMU, APICv, and posted interrupts, and how all three coexist in production.",
+  "keywords": [
+    "Virtualization", "Hypervisor", "Systems", "I/O"
+  ],
+  "articleBody": "The device model, introduced in §03, presents virtual devices to the guest. This section examines the mechanisms behind it: how the guest interacts with a virtual device, how that interaction is translated into action against real hardware, and what trade-offs separate the three dominant approaches — full device emulation, paravirtual interfaces, and direct device assignment.\nI/O is the part of virtualization where the gap between what is possible and what is fast is largest. CPU and memory virtualization on modern hardware run within a few percent of native; I/O virtualization spans an order of magnitude depending on which approach is chosen, and the approach matters more for workload performance than almost any other VMM design choice.\nThe I/O Path Three things must happen for any guest I/O operation to complete. The guest must indicate that it wants the operation performed (a submission); the operation must be performed against real hardware on the host side (the backend work); and the guest must learn that it has completed (the completion). Every I/O virtualization technique is fundamentally a different design for these three steps.\nguest ──submit──→ VMM ──backend──→ real hardware ↑ │ └────completion─────────┘ The cost of an I/O technique is dominated by what each step requires of the VMM:\nSubmission cost. Does each request require a VM-exit, or can multiple requests be batched? Does the VMM have to decode an arbitrary instruction stream, or does it receive a structured request? Backend cost. Does the VMM perform the work itself, or does it delegate to the host kernel, to a separate driver domain, or to the device itself? Completion cost. Does each completion require an injected interrupt? Can the guest poll? Are interrupts coalesced? The three approaches that follow make different choices at each step.\nFull Device Emulation In full device emulation, the VMM presents the guest with a virtual device whose interface is bit-for-bit identical to a real hardware device — typically a popular older device with broad driver support, like an Intel e1000 NIC or an LSI SCSI controller. The guest’s unmodified driver for that device interacts with it exactly as it would with the real hardware: programming registers via MMIO or PIO, setting up DMA descriptors, waiting for completion interrupts.\nThe VMM intercepts every register access, decodes the request, performs the requested I/O against some real backing resource (a host network interface, a host disk file), and injects an interrupt when complete.\nguest driver (unmodified) │ │ MMIO write / PIO out ▼ ─── VM-exit ────────────────────────── │ ▼ VMM device model │ decode, perform real I/O ▼ host I/O layer (kernel, file system) │ ▼ real hardware The advantages are uniform compatibility — any guest OS that supports the chosen device works without modification — and operational simplicity (the device interface is well understood and well documented). The costs are uniform: every register access traps; every completion injects an interrupt; the VMM must decode and emulate enough of the device’s behavior to satisfy any quirk the guest driver might exercise.\nIn a hosted VMM (e.g., QEMU + KVM), each MMIO access by the guest costs at least one VM-exit and a kernel-to-user round-trip into the QEMU device model. For low-rate devices (a serial console, a CD-ROM) this is fine. For high-rate devices (a 10 GbE NIC, an NVMe SSD) it is catastrophic — the per-packet cost of full emulation is high enough that emulated network throughput is typically a small fraction of what the underlying hardware can deliver.\nFull emulation persists not because it is fast but because it is universal: it is the fallback for any guest, any device, any workload that cannot use a paravirtual or pass-through path.\nParavirtual I/O: virtio Paravirtual I/O abandons the requirement that the virtual device look like real hardware. Instead, the VMM and the guest agree on a custom device interface designed for efficient virtualization: structured request submission, batched notifications, shared-memory data transfer. The guest is modified — it loads a paravirtual driver instead of a hardware-device driver — and in return gets I/O performance an order of magnitude better than full emulation.\nThe dominant paravirtual interface is virtio, originally developed for KVM and now supported across nearly every hypervisor (KVM, Xen, Hyper-V, VMware, Firecracker, ESXi). virtio is not a single device but a family of devices (virtio-net, virtio-blk, virtio-scsi, virtio-gpu, virtio-fs, etc.) that share a common transport mechanism.\nThe virtqueue The transport is the virtqueue — a producer/consumer ring shared between guest and VMM, holding descriptors that point to buffers in guest memory.\nvirtqueue (in shared memory) ┌────────────────────────────────────────────────┐ │ desc 0 │ desc 1 │ desc 2 │ ... │ desc N │ └─────────┴────────┴────────┴─────┴──────────────┘ ▲ ▲ │ │ guest writes VMM reads descriptors (req) processes, writes used ring │ ▼ guest reads completions A typical virtio operation:\nThe guest writes one or more descriptors into the available ring, each pointing to a buffer in guest memory holding (or destined to hold) the request data. The guest writes a notification register (the doorbell) to tell the VMM new work is available. The VMM reads the descriptors, performs the I/O, writes completion records into the used ring. The VMM injects an interrupt to tell the guest there are completions. The guest reads the used ring and processes completions. The structure has several efficiency wins over full emulation:\nBatching is natural. Many descriptors can be submitted before the doorbell write; many completions can be processed before the guest re-enables interrupts. A single VM-exit can carry hundreds of operations. Notification suppression. The interface includes flags by which guest and VMM can suppress notifications during high-throughput phases. A backend that knows the guest is polling does not need to inject interrupts; a guest that knows the backend is polling does not need to ring the doorbell. Shared-memory data transfer. Buffers are referenced, not copied. The VMM accesses guest memory directly via the host virtual address it has for the guest’s memory region. vhost: kernel-side acceleration In a hosted VMM, the user-space device model is the obvious bottleneck on the virtio path. vhost moves the data path of selected virtio devices into the host kernel, eliminating the kernel-to-user round trip on every batch of operations.\nguest VMM (user) host kernel ┌─────┐ ─doorbell→ ┌──────────────┐ │ │ │ control plane│ │ │ │ (setup only) │ └─────┘ └──────────────┘ │ ┌──────────────┐ └──── direct I/O, kernel-side ─────────────│ vhost-net │ │ vhost-scsi │ │ vhost-blk │ └──────────────┘ │ ▼ real hardware The user-space device model still handles configuration and infrequent operations; high-rate I/O bypasses it entirely. The cost is a larger TCB — the vhost backend runs in the privileged host kernel — and a more complex configuration handshake. The benefit, especially for high-throughput network workloads, is substantial.\nA further evolution, vhost-user, moves the data path into a separate user-space process (often a DPDK-based packet processor) that owns the host NIC directly. The guest still uses unmodified virtio-net; the VMM still presents the standard virtio device; the data path goes through whichever vhost target — kernel, user, or hardware — is configured. The virtio interface has, in effect, become a stable contract that decouples the guest driver from the backend implementation.\nvirtio’s role today virtio is the universal I/O interface of cloud virtualization. It is used by Linux, Windows (via paravirtual driver packages), and most BSDs; it is the only I/O interface in microVMs like Firecracker, where the absence of legacy device emulation is a deliberate TCB-reduction choice. Its design has held up well: first described in Russell’s 2008 virtio paper (developed at IBM/OzLabs to unify the multiple paravirtual driver stacks then in Linux), and standardized as OASIS VIRTIO v1.0 in 2014, with v1.1 (2019) and v1.2 (2022) extensions.\nDirect Device Assignment and SR-IOV The third approach gives up emulation and paravirtualization both: the guest is given direct access to a real hardware device, and the VMM stays out of the data path entirely.\nPass-through In simple pass-through (sometimes called VFIO on Linux, or PCI pass-through), an entire physical device is assigned to a single guest. The guest’s driver programs the real device’s registers directly; the device DMAs into the guest’s memory directly; completion interrupts are routed (with hardware help) to the guest’s vCPU directly.\nguest real device ┌──────────────────┐ ┌──────────────────┐ │ unmodified │ ── MMIO ────→ │ │ │ vendor driver │ ←── DMA ───── │ │ │ │ ← interrupt ─ │ │ └──────────────────┘ └──────────────────┘ (VMM not on data path) For pass-through to be safe, two hardware mechanisms must be in place:\nThe IOMMU (Intel VT-d, AMD-Vi) confines the device’s DMA to the guest’s allocated memory. Without it, a malicious or buggy guest could direct the device to DMA anywhere in physical memory. Interrupt remapping routes the device’s interrupts to the guest’s vCPU rather than to the host. With posted interrupts, this can happen without a VM-exit — the interrupt is delivered directly to a guest vCPU running in non-root mode. Pass-through delivers near-native performance — within a few percent of bare hardware on most workloads — at the cost that the device is monogamous (one guest at a time) and that live migration becomes difficult (the device’s state lives in real silicon, not in software the VMM can serialize).\nSR-IOV Single-Root I/O Virtualization (SR-IOV) lets a single physical device present itself as many independent virtual functions (VFs), each of which can be assigned to a different guest. The device’s silicon implements the multiplexing — separate queues, separate MAC addresses (for NICs), separate doorbell registers — and each VF is, from a guest’s perspective, an independent device that can be passed through using the same VFIO mechanism as a single-device pass-through.\nSR-IOV-capable physical device ┌────────────────────────────────────┐ │ PF (physical function, host-managed) │ ┌────┐ ┌────┐ ┌────┐ ┌────┐ │ │ │ VF │ │ VF │ │ VF │ │ VF │ │ │ └────┘ └────┘ └────┘ └────┘ │ └────┬──────┬──────┬──────┬──────────┘ │ │ │ │ guest1 guest2 guest3 guest4 SR-IOV is the standard mechanism for high-throughput virtualized networking and storage. The physical function (PF) on the host configures the device and partitions resources among VFs; each VF is then assigned to a guest via VFIO. Multiplexing happens in the device, isolation is enforced by the IOMMU, and the VMM is involved only in setup.\nThe trade-off is hardware dependence (only specific devices support SR-IOV, typically server-grade NICs and NVMe drives) and inflexibility (the number of VFs is fixed in silicon; live migration remains difficult). For workloads that fit, the performance is close to bare metal.\nA Note on GPU Virtualization GPU virtualization deserves brief separate treatment because it does not fit cleanly into any of the three categories above. Three approaches coexist in practice:\nvirtio-gpu is the paravirtual approach: a guest driver targets a virtio-class GPU device, and the VMM forwards graphics commands to a host backend (often via VirGL or Venus for OpenGL/Vulkan). It works for any guest with a virtio-gpu driver but exposes only a subset of GPU features and pays the usual virtio command-translation cost. Mediated pass-through (Intel GVT-g, NVIDIA vGPU) is a hybrid: the host GPU presents multiple virtual functions, but unlike SR-IOV the VFs are not autonomous — the host driver mediates command submission while letting the guest map command buffers and framebuffers directly. This trades full pass-through performance for the ability to share a single GPU across multiple guests. MIG (Multi-Instance GPU) on recent NVIDIA datacenter GPUs goes further toward true SR-IOV-style partitioning, presenting hardware-isolated GPU slices. The space is qualitatively different from network/block I/O: GPU workloads are command-stream-heavy (latency- and throughput-sensitive on submission), state-rich (large framebuffers and command buffers), and tightly coupled to a vendor-specific driver stack. As a result, virtualization mechanisms that work well for storage and networking translate poorly. GPU virtualization is an active research and engineering area that this survey treats as out of scope beyond this note.\nComparison and Composition The three approaches occupy different points on a flexibility/performance trade-off:\nFull Emulation Virtio (Paravirtual) Pass-through / SR-IOV Guest modification none paravirtual driver none (uses real device driver) VMM on data path every access shared ring + notifications not at all Performance poor (10–30% of native) good (often \u003e90%) near-native (\u003e95%) Compatibility universal wide (driver required) device must support, guest driver must exist Live migration trivial trivial difficult Multi-tenant on one device trivial trivial only with SR-IOV Typical use legacy, low-rate, fallback the universal default high-throughput, performance-critical In production, all three coexist. A typical guest might use:\nA virtio-net NIC for general-purpose networking, An SR-IOV VF for a latency-sensitive service, An emulated serial console for boot and debug, An emulated CD-ROM for one-time configuration. The VMM presents whichever interface fits the device’s role; the guest sees a heterogeneous set of devices and uses each through whichever driver is appropriate.\nInterrupts on the I/O Path Every I/O technique above generates interrupts: emulated device interrupts, virtio completion interrupts, pass-through device interrupts. How those interrupts reach the guest vCPU is itself a topic with several layers of optimization.\nThe naive path injects an interrupt by causing a VM-exit, having the VMM update the virtual interrupt-controller state, and resuming the guest. The exit cost — measured in hundreds to thousands of cycles — is paid on every interrupt.\nTwo hardware features eliminate the exit:\nAPIC virtualization (APICv) lets the hardware handle most local APIC accesses (EOI writes, ICR writes for IPIs) without a VM-exit. Posted interrupts let an external interrupt be delivered directly to a guest vCPU running in non-root mode by writing the interrupt vector into a hardware-accessible posted-interrupt descriptor and signalling the target pCPU. The guest sees the interrupt immediately; no VMM mediation is required. The processor-side variant (APICv, 2013) handles IPIs and virtual interrupts; the VT-d variant (2016) is what makes direct device-interrupt delivery possible. Combined with SR-IOV and IOMMU interrupt remapping, posted interrupts allow a guest to receive interrupts from a real device with no software path through the VMM at all. This is the architectural counterpart on the completion path of what SR-IOV does on the submission path: take the VMM out of the loop.\nFor high-rate devices, polling is sometimes preferred over interrupts altogether. A guest (or the vhost backend) busy-polls a virtqueue or a device queue, eliminating interrupt cost at the price of CPU spend. Polling is the standard mode for DPDK-style packet processing and for storage stacks (SPDK, io_uring with polling).\nWhat this section established I/O virtualization spans three approaches that occupy different points on the flexibility/performance trade-off. Full emulation presents real-hardware interfaces to the guest at the cost of one VM-exit per register access; it is the universal fallback. Paravirtual I/O (virtio) replaces the device interface with a shared-memory ring optimized for batched, low-overhead virtualization, and is the universal default in modern hypervisors. Direct assignment and SR-IOV give the guest a real device or a hardware-managed slice of one, taking the VMM out of the data path entirely at the cost of flexibility and migration. The three coexist in any non-trivial deployment.\nAcross all three, the dominant performance concerns are reducing the number of VM-exits on submissions and the number of interrupt injections on completions. The hardware features that close those gaps — IOMMU, SR-IOV, APICv, posted interrupts — together let a well-configured guest do device I/O with the VMM essentially absent from the data path.\nThe next section, Cross-Domain Communication, generalizes the question: regardless of whether the communication is guest-to-VMM (as here) or guest-to-guest or driver-domain-to-driver-domain (as in disaggregated VMMs), what mechanisms carry data across an isolation boundary, and what determines their cost?\n",
+  "wordCount" : "2572",
+  "inLanguage": "en",
+  "datePublished": "2026-05-17T13:00:00+08:00",
+  "dateModified": "2026-05-17T13:00:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": "Anekoique"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://anekoique.github.io/virtualization/io/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Anekoique's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://anekoique.github.io/img/head.jpg"
+    }
+  }
+}
+</script>
+</head>
+
+<body class=" dark" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://anekoique.github.io/" accesskey="h" title="Anekoique&#39;s Blog (Alt + H)">Anekoique&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://anekoique.github.io/search/" title="Search (Alt &#43; /)" accesskey=/>
+                    <span>Search</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/tags/" title="Tags">
+                    <span>Tags</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/archives/" title="Archives">
+                    <span>Archives</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://anekoique.github.io/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://anekoique.github.io/">Home</a>&nbsp;»&nbsp;<a href="https://anekoique.github.io/virtualization/">Virtualization Series</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Virtualization Series 06 — I/O Virtualization
+    </h1>
+    <div class="post-meta"><span title='2026-05-17 13:00:00 +0800 CST'>2026-05-17</span>&nbsp;·&nbsp;13 min&nbsp;·&nbsp;Anekoique
+
+</div>
+  </header> 
+<div class="toc-sidebar collapsed" id="toc-sidebar">
+    <div class="toc-container">
+        <div class="toc-header">
+            <span class="toc-title">Table of Contents</span>
+        </div>
+        <nav class="toc-nav"><ul>
+                <li>
+                    <a href="#the-io-path" aria-label="The I/O Path">The I/O Path</a></li>
+                <li>
+                    <a href="#full-device-emulation" aria-label="Full Device Emulation">Full Device Emulation</a></li>
+                <li>
+                    <a href="#paravirtual-io-virtio" aria-label="Paravirtual I/O: virtio">Paravirtual I/O: virtio</a><ul>
+                    
+                <li>
+                    <a href="#the-virtqueue" aria-label="The virtqueue">The virtqueue</a></li>
+                <li>
+                    <a href="#vhost-kernel-side-acceleration" aria-label="vhost: kernel-side acceleration">vhost: kernel-side acceleration</a></li>
+                <li>
+                    <a href="#virtios-role-today" aria-label="virtio&rsquo;s role today">virtio&rsquo;s role today</a></li></ul>
+                </li>
+                <li>
+                    <a href="#direct-device-assignment-and-sr-iov" aria-label="Direct Device Assignment and SR-IOV">Direct Device Assignment and SR-IOV</a><ul>
+                    
+                <li>
+                    <a href="#pass-through" aria-label="Pass-through">Pass-through</a></li>
+                <li>
+                    <a href="#sr-iov" aria-label="SR-IOV">SR-IOV</a></li></ul>
+                </li>
+                <li>
+                    <a href="#a-note-on-gpu-virtualization" aria-label="A Note on GPU Virtualization">A Note on GPU Virtualization</a></li>
+                <li>
+                    <a href="#comparison-and-composition" aria-label="Comparison and Composition">Comparison and Composition</a></li>
+                <li>
+                    <a href="#interrupts-on-the-io-path" aria-label="Interrupts on the I/O Path">Interrupts on the I/O Path</a></li>
+                <li>
+                    <a href="#what-this-section-established" aria-label="What this section established">What this section established</a>
+                </li>
+            </ul>
+        </nav>
+        
+        
+        <div class="reading-progress">
+            <div class="progress-bar" id="reading-progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+
+<div class="toc-toggle" id="toc-toggle" title="切换目录">
+    <span>›</span>
+</div>
+  <div class="post-content"><p>The device model, introduced in <a href="/virtualization/vmm-architecture/">§03</a>, presents virtual devices to the guest. This section examines the mechanisms behind it: how the guest interacts with a virtual device, how that interaction is translated into action against real hardware, and what trade-offs separate the three dominant approaches — full device emulation, paravirtual interfaces, and direct device assignment.</p>
+<p>I/O is the part of virtualization where the gap between <em>what is possible</em> and <em>what is fast</em> is largest. CPU and memory virtualization on modern hardware run within a few percent of native; I/O virtualization spans an order of magnitude depending on which approach is chosen, and the approach matters more for workload performance than almost any other VMM design choice.</p>
+<h2 id="the-io-path">The I/O Path<a hidden class="anchor" aria-hidden="true" href="#the-io-path">#</a></h2>
+<p>Three things must happen for any guest I/O operation to complete. The guest must indicate that it wants the operation performed (a <em>submission</em>); the operation must be performed against real hardware on the host side (the <em>backend work</em>); and the guest must learn that it has completed (the <em>completion</em>). Every I/O virtualization technique is fundamentally a different design for these three steps.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest ──submit──→  VMM   ──backend──→  real hardware
+</span></span><span class="line"><span class="cl">                    ↑                       │
+</span></span><span class="line"><span class="cl">                    └────completion─────────┘
+</span></span></code></pre></div><p>The cost of an I/O technique is dominated by what each step requires of the VMM:</p>
+<ul>
+<li><strong>Submission cost.</strong> Does each request require a VM-exit, or can multiple requests be batched? Does the VMM have to decode an arbitrary instruction stream, or does it receive a structured request?</li>
+<li><strong>Backend cost.</strong> Does the VMM perform the work itself, or does it delegate to the host kernel, to a separate driver domain, or to the device itself?</li>
+<li><strong>Completion cost.</strong> Does each completion require an injected interrupt? Can the guest poll? Are interrupts coalesced?</li>
+</ul>
+<p>The three approaches that follow make different choices at each step.</p>
+<h2 id="full-device-emulation">Full Device Emulation<a hidden class="anchor" aria-hidden="true" href="#full-device-emulation">#</a></h2>
+<p>In <strong>full device emulation</strong>, the VMM presents the guest with a virtual device whose interface is bit-for-bit identical to a real hardware device — typically a popular older device with broad driver support, like an Intel e1000 NIC or an LSI SCSI controller. The guest&rsquo;s unmodified driver for that device interacts with it exactly as it would with the real hardware: programming registers via MMIO or PIO, setting up DMA descriptors, waiting for completion interrupts.</p>
+<p>The VMM intercepts every register access, decodes the request, performs the requested I/O against some real backing resource (a host network interface, a host disk file), and injects an interrupt when complete.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest driver (unmodified)
+</span></span><span class="line"><span class="cl">    │
+</span></span><span class="line"><span class="cl">    │ MMIO write / PIO out
+</span></span><span class="line"><span class="cl">    ▼
+</span></span><span class="line"><span class="cl">─── VM-exit ──────────────────────────
+</span></span><span class="line"><span class="cl">    │
+</span></span><span class="line"><span class="cl">    ▼
+</span></span><span class="line"><span class="cl">VMM device model
+</span></span><span class="line"><span class="cl">    │  decode, perform real I/O
+</span></span><span class="line"><span class="cl">    ▼
+</span></span><span class="line"><span class="cl">host I/O layer (kernel, file system)
+</span></span><span class="line"><span class="cl">    │
+</span></span><span class="line"><span class="cl">    ▼
+</span></span><span class="line"><span class="cl">real hardware
+</span></span></code></pre></div><p>The advantages are uniform compatibility — any guest OS that supports the chosen device works without modification — and operational simplicity (the device interface is well understood and well documented). The costs are uniform: every register access traps; every completion injects an interrupt; the VMM must decode and emulate enough of the device&rsquo;s behavior to satisfy any quirk the guest driver might exercise.</p>
+<p>In a hosted VMM (e.g., QEMU + KVM), each MMIO access by the guest costs at least one VM-exit and a kernel-to-user round-trip into the QEMU device model. For low-rate devices (a serial console, a CD-ROM) this is fine. For high-rate devices (a 10 GbE NIC, an NVMe SSD) it is catastrophic — the per-packet cost of full emulation is high enough that emulated network throughput is typically a small fraction of what the underlying hardware can deliver.</p>
+<p>Full emulation persists not because it is fast but because it is universal: it is the fallback for any guest, any device, any workload that cannot use a paravirtual or pass-through path.</p>
+<h2 id="paravirtual-io-virtio">Paravirtual I/O: virtio<a hidden class="anchor" aria-hidden="true" href="#paravirtual-io-virtio">#</a></h2>
+<p><strong>Paravirtual I/O</strong> abandons the requirement that the virtual device look like real hardware. Instead, the VMM and the guest agree on a custom device interface designed for efficient virtualization: structured request submission, batched notifications, shared-memory data transfer. The guest is modified — it loads a paravirtual driver instead of a hardware-device driver — and in return gets I/O performance an order of magnitude better than full emulation.</p>
+<p>The dominant paravirtual interface is <strong><code>virtio</code></strong>, originally developed for KVM and now supported across nearly every hypervisor (KVM, Xen, Hyper-V, VMware, Firecracker, ESXi). <code>virtio</code> is not a single device but a family of devices (<code>virtio-net</code>, <code>virtio-blk</code>, <code>virtio-scsi</code>, <code>virtio-gpu</code>, <code>virtio-fs</code>, etc.) that share a common transport mechanism.</p>
+<h3 id="the-virtqueue">The virtqueue<a hidden class="anchor" aria-hidden="true" href="#the-virtqueue">#</a></h3>
+<p>The transport is the <strong>virtqueue</strong> — a producer/consumer ring shared between guest and VMM, holding <strong>descriptors</strong> that point to buffers in guest memory.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">                    virtqueue (in shared memory)
+</span></span><span class="line"><span class="cl">       ┌────────────────────────────────────────────────┐
+</span></span><span class="line"><span class="cl">       │  desc 0 │ desc 1 │ desc 2 │ ... │ desc N       │
+</span></span><span class="line"><span class="cl">       └─────────┴────────┴────────┴─────┴──────────────┘
+</span></span><span class="line"><span class="cl">            ▲                                ▲
+</span></span><span class="line"><span class="cl">            │                                │
+</span></span><span class="line"><span class="cl">       guest writes                     VMM reads
+</span></span><span class="line"><span class="cl">       descriptors (req)                processes,
+</span></span><span class="line"><span class="cl">                                        writes used ring
+</span></span><span class="line"><span class="cl">                                                │
+</span></span><span class="line"><span class="cl">                                                ▼
+</span></span><span class="line"><span class="cl">                                          guest reads
+</span></span><span class="line"><span class="cl">                                          completions
+</span></span></code></pre></div><p>A typical virtio operation:</p>
+<ol>
+<li>The guest writes one or more descriptors into the <em>available</em> ring, each pointing to a buffer in guest memory holding (or destined to hold) the request data.</li>
+<li>The guest writes a notification register (the <strong>doorbell</strong>) to tell the VMM new work is available.</li>
+<li>The VMM reads the descriptors, performs the I/O, writes completion records into the <em>used</em> ring.</li>
+<li>The VMM injects an interrupt to tell the guest there are completions.</li>
+<li>The guest reads the used ring and processes completions.</li>
+</ol>
+<p>The structure has several efficiency wins over full emulation:</p>
+<ul>
+<li><strong>Batching is natural.</strong> Many descriptors can be submitted before the doorbell write; many completions can be processed before the guest re-enables interrupts. A single VM-exit can carry hundreds of operations.</li>
+<li><strong>Notification suppression.</strong> The interface includes flags by which guest and VMM can suppress notifications during high-throughput phases. A backend that knows the guest is polling does not need to inject interrupts; a guest that knows the backend is polling does not need to ring the doorbell.</li>
+<li><strong>Shared-memory data transfer.</strong> Buffers are referenced, not copied. The VMM accesses guest memory directly via the host virtual address it has for the guest&rsquo;s memory region.</li>
+</ul>
+<h3 id="vhost-kernel-side-acceleration">vhost: kernel-side acceleration<a hidden class="anchor" aria-hidden="true" href="#vhost-kernel-side-acceleration">#</a></h3>
+<p>In a hosted VMM, the user-space device model is the obvious bottleneck on the virtio path. <strong>vhost</strong> moves the data path of selected virtio devices into the host kernel, eliminating the kernel-to-user round trip on every batch of operations.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">   guest                     VMM (user)            host kernel
+</span></span><span class="line"><span class="cl">   ┌─────┐  ─doorbell→  ┌──────────────┐
+</span></span><span class="line"><span class="cl">   │     │              │ control plane│
+</span></span><span class="line"><span class="cl">   │     │              │ (setup only) │
+</span></span><span class="line"><span class="cl">   └─────┘              └──────────────┘
+</span></span><span class="line"><span class="cl">      │                                          ┌──────────────┐
+</span></span><span class="line"><span class="cl">      └──── direct I/O, kernel-side ─────────────│ vhost-net    │
+</span></span><span class="line"><span class="cl">                                                 │ vhost-scsi   │
+</span></span><span class="line"><span class="cl">                                                 │ vhost-blk    │
+</span></span><span class="line"><span class="cl">                                                 └──────────────┘
+</span></span><span class="line"><span class="cl">                                                        │
+</span></span><span class="line"><span class="cl">                                                        ▼
+</span></span><span class="line"><span class="cl">                                                  real hardware
+</span></span></code></pre></div><p>The user-space device model still handles configuration and infrequent operations; high-rate I/O bypasses it entirely. The cost is a larger TCB — the vhost backend runs in the privileged host kernel — and a more complex configuration handshake. The benefit, especially for high-throughput network workloads, is substantial.</p>
+<p>A further evolution, <strong>vhost-user</strong>, moves the data path into a separate user-space process (often a DPDK-based packet processor) that owns the host NIC directly. The guest still uses unmodified <code>virtio-net</code>; the VMM still presents the standard virtio device; the data path goes through whichever vhost target — kernel, user, or hardware — is configured. The virtio interface has, in effect, become a stable contract that decouples the guest driver from the backend implementation.</p>
+<h3 id="virtios-role-today">virtio&rsquo;s role today<a hidden class="anchor" aria-hidden="true" href="#virtios-role-today">#</a></h3>
+<p><code>virtio</code> is the universal I/O interface of cloud virtualization. It is used by Linux, Windows (via paravirtual driver packages), and most BSDs; it is the only I/O interface in microVMs like Firecracker, where the absence of legacy device emulation is a deliberate TCB-reduction choice. Its design has held up well: first described in <a href="https://dl.acm.org/doi/10.1145/1400097.1400108">Russell&rsquo;s 2008 virtio paper</a> (developed at IBM/OzLabs to unify the multiple paravirtual driver stacks then in Linux), and standardized as OASIS VIRTIO v1.0 in 2014, with v1.1 (2019) and v1.2 (2022) extensions.</p>
+<h2 id="direct-device-assignment-and-sr-iov">Direct Device Assignment and SR-IOV<a hidden class="anchor" aria-hidden="true" href="#direct-device-assignment-and-sr-iov">#</a></h2>
+<p>The third approach gives up emulation and paravirtualization both: the guest is given direct access to a real hardware device, and the VMM stays out of the data path entirely.</p>
+<h3 id="pass-through">Pass-through<a hidden class="anchor" aria-hidden="true" href="#pass-through">#</a></h3>
+<p>In simple <strong>pass-through</strong> (sometimes called <em>VFIO</em> on Linux, or <em>PCI pass-through</em>), an entire physical device is assigned to a single guest. The guest&rsquo;s driver programs the real device&rsquo;s registers directly; the device DMAs into the guest&rsquo;s memory directly; completion interrupts are routed (with hardware help) to the guest&rsquo;s vCPU directly.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">guest                                    real device
+</span></span><span class="line"><span class="cl">┌──────────────────┐                ┌──────────────────┐
+</span></span><span class="line"><span class="cl">│ unmodified       │  ── MMIO ────→ │                  │
+</span></span><span class="line"><span class="cl">│ vendor driver    │  ←── DMA ───── │                  │
+</span></span><span class="line"><span class="cl">│                  │  ← interrupt ─ │                  │
+</span></span><span class="line"><span class="cl">└──────────────────┘                └──────────────────┘
+</span></span><span class="line"><span class="cl">                       (VMM not on data path)
+</span></span></code></pre></div><p>For pass-through to be safe, two hardware mechanisms must be in place:</p>
+<ul>
+<li><strong>The IOMMU</strong> (Intel VT-d, AMD-Vi) confines the device&rsquo;s DMA to the guest&rsquo;s allocated memory. Without it, a malicious or buggy guest could direct the device to DMA anywhere in physical memory.</li>
+<li><strong>Interrupt remapping</strong> routes the device&rsquo;s interrupts to the guest&rsquo;s vCPU rather than to the host. With <strong>posted interrupts</strong>, this can happen without a VM-exit — the interrupt is delivered directly to a guest vCPU running in non-root mode.</li>
+</ul>
+<p>Pass-through delivers near-native performance — within a few percent of bare hardware on most workloads — at the cost that the device is monogamous (one guest at a time) and that live migration becomes difficult (the device&rsquo;s state lives in real silicon, not in software the VMM can serialize).</p>
+<h3 id="sr-iov">SR-IOV<a hidden class="anchor" aria-hidden="true" href="#sr-iov">#</a></h3>
+<p><strong>Single-Root I/O Virtualization (SR-IOV)</strong> lets a single physical device present itself as many independent <strong>virtual functions (VFs)</strong>, each of which can be assigned to a different guest. The device&rsquo;s silicon implements the multiplexing — separate queues, separate MAC addresses (for NICs), separate doorbell registers — and each VF is, from a guest&rsquo;s perspective, an independent device that can be passed through using the same VFIO mechanism as a single-device pass-through.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">                    SR-IOV-capable physical device
+</span></span><span class="line"><span class="cl">                ┌────────────────────────────────────┐
+</span></span><span class="line"><span class="cl">                │ PF (physical function, host-managed)
+</span></span><span class="line"><span class="cl">                │  ┌────┐  ┌────┐  ┌────┐  ┌────┐    │
+</span></span><span class="line"><span class="cl">                │  │ VF │  │ VF │  │ VF │  │ VF │    │
+</span></span><span class="line"><span class="cl">                │  └────┘  └────┘  └────┘  └────┘    │
+</span></span><span class="line"><span class="cl">                └────┬──────┬──────┬──────┬──────────┘
+</span></span><span class="line"><span class="cl">                     │      │      │      │
+</span></span><span class="line"><span class="cl">                  guest1  guest2  guest3  guest4
+</span></span></code></pre></div><p>SR-IOV is the standard mechanism for high-throughput virtualized networking and storage. The physical function (PF) on the host configures the device and partitions resources among VFs; each VF is then assigned to a guest via VFIO. Multiplexing happens in the device, isolation is enforced by the IOMMU, and the VMM is involved only in setup.</p>
+<p>The trade-off is hardware dependence (only specific devices support SR-IOV, typically server-grade NICs and NVMe drives) and inflexibility (the number of VFs is fixed in silicon; live migration remains difficult). For workloads that fit, the performance is close to bare metal.</p>
+<h2 id="a-note-on-gpu-virtualization">A Note on GPU Virtualization<a hidden class="anchor" aria-hidden="true" href="#a-note-on-gpu-virtualization">#</a></h2>
+<p>GPU virtualization deserves brief separate treatment because it does not fit cleanly into any of the three categories above. Three approaches coexist in practice:</p>
+<ul>
+<li><strong><code>virtio-gpu</code></strong> is the paravirtual approach: a guest driver targets a virtio-class GPU device, and the VMM forwards graphics commands to a host backend (often via VirGL or Venus for OpenGL/Vulkan). It works for any guest with a virtio-gpu driver but exposes only a subset of GPU features and pays the usual virtio command-translation cost.</li>
+<li><strong>Mediated pass-through</strong> (Intel GVT-g, NVIDIA vGPU) is a hybrid: the host GPU presents multiple virtual functions, but unlike SR-IOV the VFs are not autonomous — the host driver mediates command submission while letting the guest map command buffers and framebuffers directly. This trades full pass-through performance for the ability to share a single GPU across multiple guests.</li>
+<li><strong>MIG (Multi-Instance GPU)</strong> on recent NVIDIA datacenter GPUs goes further toward true SR-IOV-style partitioning, presenting hardware-isolated GPU slices.</li>
+</ul>
+<p>The space is qualitatively different from network/block I/O: GPU workloads are command-stream-heavy (latency- and throughput-sensitive on submission), state-rich (large framebuffers and command buffers), and tightly coupled to a vendor-specific driver stack. As a result, virtualization mechanisms that work well for storage and networking translate poorly. GPU virtualization is an active research and engineering area that this survey treats as out of scope beyond this note.</p>
+<h2 id="comparison-and-composition">Comparison and Composition<a hidden class="anchor" aria-hidden="true" href="#comparison-and-composition">#</a></h2>
+<p>The three approaches occupy different points on a flexibility/performance trade-off:</p>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th>Full Emulation</th>
+          <th>Virtio (Paravirtual)</th>
+          <th>Pass-through / SR-IOV</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Guest modification</td>
+          <td>none</td>
+          <td>paravirtual driver</td>
+          <td>none (uses real device driver)</td>
+      </tr>
+      <tr>
+          <td>VMM on data path</td>
+          <td>every access</td>
+          <td>shared ring + notifications</td>
+          <td>not at all</td>
+      </tr>
+      <tr>
+          <td>Performance</td>
+          <td>poor (10–30% of native)</td>
+          <td>good (often &gt;90%)</td>
+          <td>near-native (&gt;95%)</td>
+      </tr>
+      <tr>
+          <td>Compatibility</td>
+          <td>universal</td>
+          <td>wide (driver required)</td>
+          <td>device must support, guest driver must exist</td>
+      </tr>
+      <tr>
+          <td>Live migration</td>
+          <td>trivial</td>
+          <td>trivial</td>
+          <td>difficult</td>
+      </tr>
+      <tr>
+          <td>Multi-tenant on one device</td>
+          <td>trivial</td>
+          <td>trivial</td>
+          <td>only with SR-IOV</td>
+      </tr>
+      <tr>
+          <td>Typical use</td>
+          <td>legacy, low-rate, fallback</td>
+          <td>the universal default</td>
+          <td>high-throughput, performance-critical</td>
+      </tr>
+  </tbody>
+</table>
+<p>In production, all three coexist. A typical guest might use:</p>
+<ul>
+<li>A virtio-net NIC for general-purpose networking,</li>
+<li>An SR-IOV VF for a latency-sensitive service,</li>
+<li>An emulated serial console for boot and debug,</li>
+<li>An emulated CD-ROM for one-time configuration.</li>
+</ul>
+<p>The VMM presents whichever interface fits the device&rsquo;s role; the guest sees a heterogeneous set of devices and uses each through whichever driver is appropriate.</p>
+<h2 id="interrupts-on-the-io-path">Interrupts on the I/O Path<a hidden class="anchor" aria-hidden="true" href="#interrupts-on-the-io-path">#</a></h2>
+<p>Every I/O technique above generates interrupts: emulated device interrupts, virtio completion interrupts, pass-through device interrupts. How those interrupts reach the guest vCPU is itself a topic with several layers of optimization.</p>
+<p>The naive path injects an interrupt by causing a VM-exit, having the VMM update the virtual interrupt-controller state, and resuming the guest. The exit cost — measured in hundreds to thousands of cycles — is paid on every interrupt.</p>
+<p>Two hardware features eliminate the exit:</p>
+<ul>
+<li><strong>APIC virtualization (APICv)</strong> lets the hardware handle most local APIC accesses (<code>EOI</code> writes, ICR writes for IPIs) without a VM-exit.</li>
+<li><strong>Posted interrupts</strong> let an external interrupt be delivered directly to a guest vCPU running in non-root mode by writing the interrupt vector into a hardware-accessible posted-interrupt descriptor and signalling the target pCPU. The guest sees the interrupt immediately; no VMM mediation is required. The processor-side variant (APICv, 2013) handles IPIs and virtual interrupts; the <strong>VT-d</strong> variant (2016) is what makes direct device-interrupt delivery possible.</li>
+</ul>
+<p>Combined with SR-IOV and IOMMU interrupt remapping, posted interrupts allow a guest to receive interrupts from a real device with no software path through the VMM at all. This is the architectural counterpart on the completion path of what SR-IOV does on the submission path: take the VMM out of the loop.</p>
+<p>For high-rate devices, <strong>polling</strong> is sometimes preferred over interrupts altogether. A guest (or the vhost backend) busy-polls a virtqueue or a device queue, eliminating interrupt cost at the price of CPU spend. Polling is the standard mode for DPDK-style packet processing and for storage stacks (SPDK, io_uring with polling).</p>
+<h2 id="what-this-section-established">What this section established<a hidden class="anchor" aria-hidden="true" href="#what-this-section-established">#</a></h2>
+<p>I/O virtualization spans three approaches that occupy different points on the flexibility/performance trade-off. Full emulation presents real-hardware interfaces to the guest at the cost of one VM-exit per register access; it is the universal fallback. Paravirtual I/O (<code>virtio</code>) replaces the device interface with a shared-memory ring optimized for batched, low-overhead virtualization, and is the universal default in modern hypervisors. Direct assignment and SR-IOV give the guest a real device or a hardware-managed slice of one, taking the VMM out of the data path entirely at the cost of flexibility and migration. The three coexist in any non-trivial deployment.</p>
+<p>Across all three, the dominant performance concerns are reducing the number of VM-exits on submissions and the number of interrupt injections on completions. The hardware features that close those gaps — IOMMU, SR-IOV, APICv, posted interrupts — together let a well-configured guest do device I/O with the VMM essentially absent from the data path.</p>
+<p>The next section, <a href="/virtualization/communication/">Cross-Domain Communication</a>, generalizes the question: regardless of whether the communication is guest-to-VMM (as here) or guest-to-guest or driver-domain-to-driver-domain (as in disaggregated VMMs), what mechanisms carry data across an isolation boundary, and what determines their cost?</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="https://anekoique.github.io/tags/virtualization/">Virtualization</a></li>
+      <li><a href="https://anekoique.github.io/tags/hypervisor/">Hypervisor</a></li>
+      <li><a href="https://anekoique.github.io/tags/systems/">Systems</a></li>
+      <li><a href="https://anekoique.github.io/tags/i/o/">I/O</a></li>
+    </ul>
+
+  </footer>
+
+<div class="giscus-comments">
+    <script src="https://giscus.app/client.js"
+        data-repo="Anekoique/anekoique.github.io"
+        data-repo-id="R_kgDOPlBaDg"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOPlBaDs4Cup3u"
+        data-mapping="pathname"
+        data-strict="false"
+        data-reactions-enabled="true"
+        data-emit-metadata="false"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+</div>
+
+<script>
+(function () {
+    let lastSent = null;
+
+    
+    function getSiteTheme() {
+        return document.body.classList.contains('dark') ? 'dark' : 'light';
+    }
+
+    
+    function sendTheme(theme) {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe || !iframe.contentWindow) return false;
+        iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: theme } } },
+            'https://giscus.app'
+        );
+        lastSent = theme;
+        return true;
+    }
+
+    
+    function syncTheme() {
+        const target = getSiteTheme();
+        if (sendTheme(target)) return;
+        
+        setTimeout(syncTheme, 150);
+    }
+
+    
+    window.addEventListener('message', (event) => {
+        if (event.origin !== 'https://giscus.app') return;
+        if (event.data && event.data.giscus) {
+            
+            sendTheme(getSiteTheme());
+        }
+    });
+
+    
+    
+    let pollsLeft = 60; 
+    (function poll() {
+        const target = getSiteTheme();
+        if (lastSent !== target) sendTheme(target);
+        if (--pollsLeft > 0) setTimeout(poll, 150);
+    })();
+
+    
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!localStorage.getItem('pref-theme')) syncTheme();
+        });
+    }
+})();
+</script>
+
+
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://anekoique.github.io/">Anekoique&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

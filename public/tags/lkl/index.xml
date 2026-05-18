@@ -2,17 +2,17 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>LKL on Anekoique&#39;s Blog</title>
-    <link>http://localhost:1313/tags/lkl/</link>
+    <link>https://anekoique.github.io/tags/lkl/</link>
     <description>Recent content in LKL on Anekoique&#39;s Blog</description>
     <generator>Hugo -- 0.160.1</generator>
     <language>en</language>
     <lastBuildDate>Sun, 21 Sep 2025 17:08:45 +0800</lastBuildDate>
-    <atom:link href="http://localhost:1313/tags/lkl/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://anekoique.github.io/tags/lkl/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Basic Mechanism of LKL and UINTR</title>
-      <link>http://localhost:1313/posts/lkl_uintr/</link>
+      <link>https://anekoique.github.io/posts/lkl_uintr/</link>
       <pubDate>Sun, 21 Sep 2025 17:08:45 +0800</pubDate>
-      <guid>http://localhost:1313/posts/lkl_uintr/</guid>
+      <guid>https://anekoique.github.io/posts/lkl_uintr/</guid>
       <description>An introduction to Linux Kernel Library (LKL) and User Interrupts (UINTR) — how LKL runs the Linux kernel as a library for userspace applications, and how UINTR enables low-latency cross-process notifications without syscall overhead.</description>
     </item>
   </channel>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Systems on Anekoique&#39;s Blog</title>
+    <link>https://anekoique.github.io/tags/systems/</link>
+    <description>Recent content in Systems on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.160.1</generator>
+    <language>en</language>
+    <lastBuildDate>Sun, 17 May 2026 21:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/tags/systems/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Series</title>
+      <link>https://anekoique.github.io/posts/virtualization-survey/</link>
+      <pubDate>Sun, 17 May 2026 21:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/posts/virtualization-survey/</guid>
+      <description>A guided tour of traditional machine virtualization, organized as ten chapters from foundations through performance, plus per-system case studies grounded in source-code reading.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Xen</title>
+      <link>https://anekoique.github.io/virtualization/systems/xen/</link>
+      <pubDate>Sun, 17 May 2026 20:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/xen/</guid>
+      <description>Canonical paravirtualizing Type-1 hypervisor. PV/HVM/PVH modes contrasted side by side across CPU, memory, I/O, cross-domain communication, and VM management. The disaggregated shape in production form.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 00 — History</title>
+      <link>https://anekoique.github.io/virtualization/history/</link>
+      <pubDate>Sun, 17 May 2026 19:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/history/</guid>
+      <description>A historical preface to the survey, organized into five eras from IBM CP-40 (1964) through modern microVMs and language-isolated systems. Anchors each era in the papers that invented the techniques later chapters treat as ambient.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 01 — Foundations</title>
+      <link>https://anekoique.github.io/virtualization/foundations/</link>
+      <pubDate>Sun, 17 May 2026 18:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/foundations/</guid>
+      <description>What virtualization is, why it is used, and the Popek–Goldberg condition for virtualizability. Sets up the trap-and-emulate discipline that the rest of the survey treats as ambient context.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 02 — Taxonomy</title>
+      <link>https://anekoique.github.io/virtualization/taxonomy/</link>
+      <pubDate>Sun, 17 May 2026 17:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/taxonomy/</guid>
+      <description>The four largely-independent axes of VMM design: placement (Type 1 vs Type 2), guest interface (full vs paravirtual), hardware support (VT-x, EPT, IOMMU), and isolation boundary (hardware, software, language).</description>
+    </item>
+    <item>
+      <title>Virtualization Series 03 — Hypervisor Architecture</title>
+      <link>https://anekoique.github.io/virtualization/vmm-architecture/</link>
+      <pubDate>Sun, 17 May 2026 16:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/vmm-architecture/</guid>
+      <description>The recurring component set inside a VMM (vCPU, memory, device, interrupt/timer, exit handler, control plane) and the three architectural shapes (monolithic, hosted, disaggregated) they organize into.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 04 — CPU Virtualization</title>
+      <link>https://anekoique.github.io/virtualization/cpu/</link>
+      <pubDate>Sun, 17 May 2026 15:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/cpu/</guid>
+      <description>How guest code actually runs on a physical CPU: trap-and-emulate, binary translation, paravirtualization, and hardware-assisted virtualization (VT-x, AMD-V). Plus vCPU scheduling, gang scheduling, and the exit-cost story.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 05 — Memory Virtualization</title>
+      <link>https://anekoique.github.io/virtualization/memory/</link>
+      <pubDate>Sun, 17 May 2026 14:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/memory/</guid>
+      <description>From shadow page tables to nested paging (EPT, NPT), with the overcommit toolbox: demand allocation, ballooning, content-based page sharing, hypervisor swapping, idle-memory taxation.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 06 — I/O Virtualization</title>
+      <link>https://anekoique.github.io/virtualization/io/</link>
+      <pubDate>Sun, 17 May 2026 13:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/io/</guid>
+      <description>Full device emulation vs paravirtual (virtio + vhost) vs direct assignment (SR-IOV). The order-of-magnitude performance spread, the role of IOMMU, APICv, and posted interrupts, and how all three coexist in production.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 07 — Cross-Domain Communication</title>
+      <link>https://anekoique.github.io/virtualization/communication/</link>
+      <pubDate>Sun, 17 May 2026 12:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/communication/</guid>
+      <description>Hypercalls, microkernel IPC, shared-memory rings, grant tables, capabilities — the substrate every non-monolithic VMM is built on. Cost anatomy of boundary crossings and why disaggregation lives or dies by it.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 08 — VM Management and Cloud Extensions</title>
+      <link>https://anekoique.github.io/virtualization/vm-management/</link>
+      <pubDate>Sun, 17 May 2026 11:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/vm-management/</guid>
+      <description>The operational layer: lifecycle, snapshotting, pre-copy / post-copy live migration, high-availability replication (Remus), microVMs (Firecracker), and fleet orchestration. How operational requirements shape VMM architecture.</description>
+    </item>
+    <item>
+      <title>Virtualization Series 09 — Performance and Overhead</title>
+      <link>https://anekoique.github.io/virtualization/performance/</link>
+      <pubDate>Sun, 17 May 2026 10:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/performance/</guid>
+      <description>What virtualization actually costs on modern hardware. CPU, memory, I/O, scheduling, and memory-pressure overhead components, and the residual costs that two decades of hardware extensions have not eliminated.</description>
+    </item>
+  </channel>
+</rss>

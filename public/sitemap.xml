@@ -2,78 +2,145 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>http://localhost:1313/</loc>
+    <loc>https://anekoique.github.io/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/hypervisor/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/posts/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/series/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/systems/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/virtualization/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/posts/virtualization-survey/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/series/virtualization-series/</loc>
+    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/</loc>
+    <lastmod>2026-05-17T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/xen/</loc>
+    <lastmod>2026-05-17T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/xen/</loc>
+    <lastmod>2026-05-17T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/history/</loc>
+    <lastmod>2026-05-17T19:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/foundations/</loc>
+    <lastmod>2026-05-17T18:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/taxonomy/</loc>
+    <lastmod>2026-05-17T17:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/vmm-architecture/</loc>
+    <lastmod>2026-05-17T16:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/cpu/</loc>
+    <lastmod>2026-05-17T15:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/cpu/</loc>
+    <lastmod>2026-05-17T15:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/memory/</loc>
+    <lastmod>2026-05-17T14:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/memory/</loc>
+    <lastmod>2026-05-17T14:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/i/o/</loc>
+    <lastmod>2026-05-17T13:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/io/</loc>
+    <lastmod>2026-05-17T13:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/ipc/</loc>
+    <lastmod>2026-05-17T12:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/communication/</loc>
+    <lastmod>2026-05-17T12:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/cloud/</loc>
+    <lastmod>2026-05-17T11:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/vm-management/</loc>
+    <lastmod>2026-05-17T11:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/performance/</loc>
+    <lastmod>2026-05-17T10:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/performance/</loc>
+    <lastmod>2026-05-17T10:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/fs/</loc>
     <lastmod>2026-04-16T10:25:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/fs/</loc>
+    <loc>https://anekoique.github.io/tags/linux/</loc>
     <lastmod>2026-04-16T10:25:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/linux/</loc>
+    <loc>https://anekoique.github.io/tags/os/</loc>
     <lastmod>2026-04-16T10:25:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/memory/</loc>
+    <loc>https://anekoique.github.io/posts/pagecache/</loc>
     <lastmod>2026-04-16T10:25:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/os/</loc>
-    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/posts/pagecache/</loc>
-    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/posts/</loc>
-    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/tags/</loc>
-    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/tags/architecture/</loc>
+    <loc>https://anekoique.github.io/tags/architecture/</loc>
     <lastmod>2026-04-16T10:20:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/numa/</loc>
+    <loc>https://anekoique.github.io/posts/numa/</loc>
     <lastmod>2026-04-16T10:20:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/io/</loc>
+    <loc>https://anekoique.github.io/tags/io/</loc>
     <lastmod>2026-04-16T10:15:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/zero_copy/</loc>
+    <loc>https://anekoique.github.io/posts/zero_copy/</loc>
     <lastmod>2026-04-16T10:15:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/mm_model/</loc>
+    <loc>https://anekoique.github.io/posts/mm_model/</loc>
     <lastmod>2026-04-16T10:10:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/cpu/</loc>
+    <loc>https://anekoique.github.io/posts/mm_consistency/</loc>
     <lastmod>2026-04-16T10:05:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/mm_consistency/</loc>
-    <lastmod>2026-04-16T10:05:00+08:00</lastmod>
-  </url><url>
-    <loc>http://localhost:1313/tags/cache/</loc>
+    <loc>https://anekoique.github.io/tags/cache/</loc>
     <lastmod>2026-04-16T10:00:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/cache_coherence/</loc>
+    <loc>https://anekoique.github.io/posts/cache_coherence/</loc>
     <lastmod>2026-04-16T10:00:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/lkl_uintr/</loc>
+    <loc>https://anekoique.github.io/posts/lkl_uintr/</loc>
     <lastmod>2025-09-21T17:08:45+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/lkl/</loc>
+    <loc>https://anekoique.github.io/tags/lkl/</loc>
     <lastmod>2025-09-21T17:08:45+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/tags/uintr/</loc>
+    <loc>https://anekoique.github.io/tags/uintr/</loc>
     <lastmod>2025-09-21T17:08:45+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/hello-world/</loc>
+    <loc>https://anekoique.github.io/posts/hello-world/</loc>
     <lastmod>2025-08-27T10:00:00+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/about/</loc>
+    <loc>https://anekoique.github.io/about/</loc>
     <lastmod>2025-01-28T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/archives/</loc>
+    <loc>https://anekoique.github.io/archives/</loc>
   </url><url>
-    <loc>http://localhost:1313/categories/</loc>
+    <loc>https://anekoique.github.io/categories/</loc>
   </url><url>
-    <loc>http://localhost:1313/search/</loc>
-  </url><url>
-    <loc>http://localhost:1313/series/</loc>
+    <loc>https://anekoique.github.io/search/</loc>
   </url>
 </urlset>

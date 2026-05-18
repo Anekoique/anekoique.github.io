@@ -2,10 +2,18 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Series on Anekoique&#39;s Blog</title>
-    <link>http://localhost:1313/series/</link>
+    <link>https://anekoique.github.io/series/</link>
     <description>Recent content in Series on Anekoique&#39;s Blog</description>
     <generator>Hugo -- 0.160.1</generator>
     <language>en</language>
-    <atom:link href="http://localhost:1313/series/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sun, 17 May 2026 21:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/series/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Series</title>
+      <link>https://anekoique.github.io/series/virtualization-series/</link>
+      <pubDate>Sun, 17 May 2026 21:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/series/virtualization-series/</guid>
+      <description></description>
+    </item>
   </channel>
 </rss>

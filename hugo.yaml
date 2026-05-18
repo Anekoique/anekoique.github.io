@@ -65,6 +65,7 @@ outputs:
 # 这里的参数会被代码以 .Site.Params 的形式读取
 params:
   env: production # to enable google analytics, opengraph, twitter-cards and schema.
+  mainSections: ["posts"]  # archives/home/listings only pull from /posts/; virtualization section is reached via the catalog post
   description: "Anekoique's personal blog about computer science, distributed systems, compilers, OS and LLM"
   author: Anekoique
   # author: ["Me", "You"] # multiple authors

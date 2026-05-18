@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# Hugo build cache and intermediate output (we DO commit public/ for GitHub Pages)
+.hugo_build.lock
+resources/_gen/
