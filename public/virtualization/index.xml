@@ -4,10 +4,80 @@
     <title>Virtualization Series on Anekoique&#39;s Blog</title>
     <link>https://anekoique.github.io/virtualization/</link>
     <description>Recent content in Virtualization Series on Anekoique&#39;s Blog</description>
-    <generator>Hugo -- 0.160.1</generator>
+    <generator>Hugo -- 0.162.0</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 17 May 2026 20:00:00 +0800</lastBuildDate>
+    <lastBuildDate>Sat, 27 Jun 2026 20:00:00 +0800</lastBuildDate>
     <atom:link href="https://anekoique.github.io/virtualization/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Systems — hvisor</title>
+      <link>https://anekoique.github.io/virtualization/systems/hvisor/</link>
+      <pubDate>Sat, 27 Jun 2026 20:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/hvisor/</guid>
+      <description>Rust separation-kernel Type-1 hypervisor from Syswonder, descended from Jailhouse and RVM1.5. Static partitioning of hardware into isolated zones, no CPU scheduler, no overcommit, virtio trampoline for paravirtual I/O.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — AxVisor</title>
+      <link>https://anekoique.github.io/virtualization/systems/axvisor/</link>
+      <pubDate>Sat, 27 Jun 2026 19:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/axvisor/</guid>
+      <description>Rust Type-1 hypervisor built as an application of the ArceOS unikernel: vCPUs are scheduled as ArceOS tasks, and the hypervisor is a thin shell over a stack of arceos-hypervisor crates (axvm, axvcpu, axaddrspace, axdevice, axhvc).</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — VMware (ESXi)</title>
+      <link>https://anekoique.github.io/virtualization/systems/vmware/</link>
+      <pubDate>Sat, 27 Jun 2026 18:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/vmware/</guid>
+      <description>The canonical commercial monolithic Type-1 hypervisor. VMkernel as a specialized OS holding scheduler, storage, network, drivers, and per-VM vmm worlds; lineage from Disco (1997) to Workstation (1999) to ESX (2001); inventor of memory overcommit (TPS, ballooning, hypervisor swap).</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — KVM</title>
+      <link>https://anekoique.github.io/virtualization/systems/kvm/</link>
+      <pubDate>Sat, 27 Jun 2026 17:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/kvm/</guid>
+      <description>The canonical Type-2/hosted hypervisor: a Linux kernel module exposing the /dev/kvm ioctl ABI to userspace VMMs (QEMU, Firecracker, crosvm, cloud-hypervisor). The hosted shape pushed to its production conclusion — thin kernel hot path, everything else in userspace.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — QEMU</title>
+      <link>https://anekoique.github.io/virtualization/systems/qemu/</link>
+      <pubDate>Sat, 27 Jun 2026 16:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/qemu/</guid>
+      <description>The universal machine emulator and userspace half of every major Type-2 stack: TCG binary translator, QOM/qdev frameworks, accelerator interface, block layer, live migration, QMP. Why QEMU is best read as composable frameworks, not a hypervisor.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — VirtualBox</title>
+      <link>https://anekoique.github.io/virtualization/systems/virtualbox/</link>
+      <pubDate>Sat, 27 Jun 2026 15:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/virtualbox/</guid>
+      <description>Oracle&amp;rsquo;s cross-platform desktop Type-2 hypervisor. Ships its own kernel module (vboxdrv) per host OS family rather than using KVM; read through the lens of the portability tax that this &amp;lsquo;be your own kernel module&amp;rsquo; choice imposes.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Firecracker</title>
+      <link>https://anekoique.github.io/virtualization/systems/firecracker/</link>
+      <pubDate>Sat, 27 Jun 2026 14:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/firecracker/</guid>
+      <description>AWS&amp;rsquo;s Rust microVM (~50 KLoC) on KVM, the production substrate for AWS Lambda and Fargate. The reference for what a VMM looks like when its requirements are aggressively bounded; jailer + Rust + minimal device set as defense in depth.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Kata Containers</title>
+      <link>https://anekoique.github.io/virtualization/systems/kata/</link>
+      <pubDate>Sat, 27 Jun 2026 13:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/kata/</guid>
+      <description>The container-VM hybrid: an OCI runtime placing each container or Kubernetes pod inside a microVM (QEMU / Firecracker / cloud-hypervisor / Dragonball) running a real Linux kernel. Hardware-grade isolation with container UX; substrate for Confidential Containers.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Docker</title>
+      <link>https://anekoique.github.io/virtualization/systems/docker/</link>
+      <pubDate>Sat, 27 Jun 2026 12:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/docker/</guid>
+      <description>The canonical OS-level virtualization stack: containers as host processes restricted by namespaces, cgroups, seccomp, capabilities, OverlayFS, and netfilter. Full walk from Docker Engine to containerd to runc to kernel features.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — gVisor</title>
+      <link>https://anekoique.github.io/virtualization/systems/gvisor/</link>
+      <pubDate>Sat, 27 Jun 2026 11:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/gvisor/</guid>
+      <description>Google&amp;rsquo;s userspace-kernel sandbox: Sentry, a Go reimplementation of the Linux syscall ABI, services guest syscalls intercepted via KVM / ptrace / systrap platforms. Production isolation behind App Engine, Cloud Run, and Cloud Functions.</description>
+    </item>
     <item>
       <title>Virtualization Systems — Xen</title>
       <link>https://anekoique.github.io/virtualization/systems/xen/</link>

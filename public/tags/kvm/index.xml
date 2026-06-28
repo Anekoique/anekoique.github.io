@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>KVM on Anekoique&#39;s Blog</title>
+    <link>https://anekoique.github.io/tags/kvm/</link>
+    <description>Recent content in KVM on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.162.0</generator>
+    <language>en</language>
+    <lastBuildDate>Sat, 27 Jun 2026 17:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/tags/kvm/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Systems — KVM</title>
+      <link>https://anekoique.github.io/virtualization/systems/kvm/</link>
+      <pubDate>Sat, 27 Jun 2026 17:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/kvm/</guid>
+      <description>The canonical Type-2/hosted hypervisor: a Linux kernel module exposing the /dev/kvm ioctl ABI to userspace VMMs (QEMU, Firecracker, crosvm, cloud-hypervisor). The hosted shape pushed to its production conclusion — thin kernel hot path, everything else in userspace.</description>
+    </item>
+  </channel>
+</rss>

@@ -4,29 +4,148 @@
     <title>Tags on Anekoique&#39;s Blog</title>
     <link>https://anekoique.github.io/tags/</link>
     <description>Recent content in Tags on Anekoique&#39;s Blog</description>
-    <generator>Hugo -- 0.160.1</generator>
+    <generator>Hugo -- 0.162.0</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 17 May 2026 21:00:00 +0800</lastBuildDate>
+    <lastBuildDate>Sat, 27 Jun 2026 20:00:00 +0800</lastBuildDate>
     <atom:link href="https://anekoique.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Hvisor</title>
+      <link>https://anekoique.github.io/tags/hvisor/</link>
+      <pubDate>Sat, 27 Jun 2026 20:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/hvisor/</guid>
+      <description></description>
+    </item>
     <item>
       <title>Hypervisor</title>
       <link>https://anekoique.github.io/tags/hypervisor/</link>
-      <pubDate>Sun, 17 May 2026 21:00:00 +0800</pubDate>
+      <pubDate>Sat, 27 Jun 2026 20:00:00 +0800</pubDate>
       <guid>https://anekoique.github.io/tags/hypervisor/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Rust</title>
+      <link>https://anekoique.github.io/tags/rust/</link>
+      <pubDate>Sat, 27 Jun 2026 20:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/rust/</guid>
       <description></description>
     </item>
     <item>
       <title>Systems</title>
       <link>https://anekoique.github.io/tags/systems/</link>
-      <pubDate>Sun, 17 May 2026 21:00:00 +0800</pubDate>
+      <pubDate>Sat, 27 Jun 2026 20:00:00 +0800</pubDate>
       <guid>https://anekoique.github.io/tags/systems/</guid>
       <description></description>
     </item>
     <item>
       <title>Virtualization</title>
       <link>https://anekoique.github.io/tags/virtualization/</link>
-      <pubDate>Sun, 17 May 2026 21:00:00 +0800</pubDate>
+      <pubDate>Sat, 27 Jun 2026 20:00:00 +0800</pubDate>
       <guid>https://anekoique.github.io/tags/virtualization/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>ArceOS</title>
+      <link>https://anekoique.github.io/tags/arceos/</link>
+      <pubDate>Sat, 27 Jun 2026 19:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/arceos/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>VMware</title>
+      <link>https://anekoique.github.io/tags/vmware/</link>
+      <pubDate>Sat, 27 Jun 2026 18:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/vmware/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>KVM</title>
+      <link>https://anekoique.github.io/tags/kvm/</link>
+      <pubDate>Sat, 27 Jun 2026 17:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/kvm/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Linux</title>
+      <link>https://anekoique.github.io/tags/linux/</link>
+      <pubDate>Sat, 27 Jun 2026 17:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/linux/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Emulation</title>
+      <link>https://anekoique.github.io/tags/emulation/</link>
+      <pubDate>Sat, 27 Jun 2026 16:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/emulation/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>QEMU</title>
+      <link>https://anekoique.github.io/tags/qemu/</link>
+      <pubDate>Sat, 27 Jun 2026 16:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/qemu/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>VirtualBox</title>
+      <link>https://anekoique.github.io/tags/virtualbox/</link>
+      <pubDate>Sat, 27 Jun 2026 15:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/virtualbox/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Firecracker</title>
+      <link>https://anekoique.github.io/tags/firecracker/</link>
+      <pubDate>Sat, 27 Jun 2026 14:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/firecracker/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>MicroVM</title>
+      <link>https://anekoique.github.io/tags/microvm/</link>
+      <pubDate>Sat, 27 Jun 2026 14:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/microvm/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Containers</title>
+      <link>https://anekoique.github.io/tags/containers/</link>
+      <pubDate>Sat, 27 Jun 2026 13:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/containers/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Kata</title>
+      <link>https://anekoique.github.io/tags/kata/</link>
+      <pubDate>Sat, 27 Jun 2026 13:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/kata/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Docker</title>
+      <link>https://anekoique.github.io/tags/docker/</link>
+      <pubDate>Sat, 27 Jun 2026 12:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/docker/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Go</title>
+      <link>https://anekoique.github.io/tags/go/</link>
+      <pubDate>Sat, 27 Jun 2026 11:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/go/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>GVisor</title>
+      <link>https://anekoique.github.io/tags/gvisor/</link>
+      <pubDate>Sat, 27 Jun 2026 11:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/gvisor/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Sandbox</title>
+      <link>https://anekoique.github.io/tags/sandbox/</link>
+      <pubDate>Sat, 27 Jun 2026 11:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/tags/sandbox/</guid>
       <description></description>
     </item>
     <item>
@@ -83,13 +202,6 @@
       <link>https://anekoique.github.io/tags/fs/</link>
       <pubDate>Thu, 16 Apr 2026 10:25:00 +0800</pubDate>
       <guid>https://anekoique.github.io/tags/fs/</guid>
-      <description></description>
-    </item>
-    <item>
-      <title>Linux</title>
-      <link>https://anekoique.github.io/tags/linux/</link>
-      <pubDate>Thu, 16 Apr 2026 10:25:00 +0800</pubDate>
-      <guid>https://anekoique.github.io/tags/linux/</guid>
       <description></description>
     </item>
     <item>

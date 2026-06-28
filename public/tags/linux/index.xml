@@ -4,10 +4,24 @@
     <title>Linux on Anekoique&#39;s Blog</title>
     <link>https://anekoique.github.io/tags/linux/</link>
     <description>Recent content in Linux on Anekoique&#39;s Blog</description>
-    <generator>Hugo -- 0.160.1</generator>
+    <generator>Hugo -- 0.162.0</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 16 Apr 2026 10:25:00 +0800</lastBuildDate>
+    <lastBuildDate>Sat, 27 Jun 2026 17:00:00 +0800</lastBuildDate>
     <atom:link href="https://anekoique.github.io/tags/linux/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Systems — KVM</title>
+      <link>https://anekoique.github.io/virtualization/systems/kvm/</link>
+      <pubDate>Sat, 27 Jun 2026 17:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/kvm/</guid>
+      <description>The canonical Type-2/hosted hypervisor: a Linux kernel module exposing the /dev/kvm ioctl ABI to userspace VMMs (QEMU, Firecracker, crosvm, cloud-hypervisor). The hosted shape pushed to its production conclusion — thin kernel hot path, everything else in userspace.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Docker</title>
+      <link>https://anekoique.github.io/virtualization/systems/docker/</link>
+      <pubDate>Sat, 27 Jun 2026 12:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/docker/</guid>
+      <description>The canonical OS-level virtualization stack: containers as host processes restricted by namespaces, cgroups, seccomp, capabilities, OverlayFS, and netfilter. Full walk from Docker Engine to containerd to runc to kernel features.</description>
+    </item>
     <item>
       <title>Page Cache</title>
       <link>https://anekoique.github.io/posts/pagecache/</link>

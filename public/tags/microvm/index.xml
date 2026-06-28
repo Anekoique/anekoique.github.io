@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>MicroVM on Anekoique&#39;s Blog</title>
+    <link>https://anekoique.github.io/tags/microvm/</link>
+    <description>Recent content in MicroVM on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.162.0</generator>
+    <language>en</language>
+    <lastBuildDate>Sat, 27 Jun 2026 14:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/tags/microvm/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Systems — Firecracker</title>
+      <link>https://anekoique.github.io/virtualization/systems/firecracker/</link>
+      <pubDate>Sat, 27 Jun 2026 14:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/firecracker/</guid>
+      <description>AWS&amp;rsquo;s Rust microVM (~50 KLoC) on KVM, the production substrate for AWS Lambda and Fargate. The reference for what a VMM looks like when its requirements are aggressively bounded; jailer + Rust + minimal device set as defense in depth.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Kata Containers</title>
+      <link>https://anekoique.github.io/virtualization/systems/kata/</link>
+      <pubDate>Sat, 27 Jun 2026 13:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/kata/</guid>
+      <description>The container-VM hybrid: an OCI runtime placing each container or Kubernetes pod inside a microVM (QEMU / Firecracker / cloud-hypervisor / Dragonball) running a real Linux kernel. Hardware-grade isolation with container UX; substrate for Confidential Containers.</description>
+    </item>
+  </channel>
+</rss>

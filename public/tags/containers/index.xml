@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Containers on Anekoique&#39;s Blog</title>
+    <link>https://anekoique.github.io/tags/containers/</link>
+    <description>Recent content in Containers on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.162.0</generator>
+    <language>en</language>
+    <lastBuildDate>Sat, 27 Jun 2026 13:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/tags/containers/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Systems — Kata Containers</title>
+      <link>https://anekoique.github.io/virtualization/systems/kata/</link>
+      <pubDate>Sat, 27 Jun 2026 13:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/kata/</guid>
+      <description>The container-VM hybrid: an OCI runtime placing each container or Kubernetes pod inside a microVM (QEMU / Firecracker / cloud-hypervisor / Dragonball) running a real Linux kernel. Hardware-grade isolation with container UX; substrate for Confidential Containers.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Docker</title>
+      <link>https://anekoique.github.io/virtualization/systems/docker/</link>
+      <pubDate>Sat, 27 Jun 2026 12:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/docker/</guid>
+      <description>The canonical OS-level virtualization stack: containers as host processes restricted by namespaces, cgroups, seccomp, capabilities, OverlayFS, and netfilter. Full walk from Docker Engine to containerd to runc to kernel features.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — gVisor</title>
+      <link>https://anekoique.github.io/virtualization/systems/gvisor/</link>
+      <pubDate>Sat, 27 Jun 2026 11:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/gvisor/</guid>
+      <description>Google&amp;rsquo;s userspace-kernel sandbox: Sentry, a Go reimplementation of the Linux syscall ABI, services guest syscalls intercepted via KVM / ptrace / systrap platforms. Production isolation behind App Engine, Cloud Run, and Cloud Functions.</description>
+    </item>
+  </channel>
+</rss>

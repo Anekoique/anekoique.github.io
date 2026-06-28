@@ -19,17 +19,17 @@ Start with [History](/virtualization/history/) for the long view, or jump to [Fo
 
 ## Traditional Virtualization
 
-0. **[History](/virtualization/history/)** — Sixty years of virtualization in five eras, from IBM CP-40 to language-isolated microVMs.
-1. **[Foundations](/virtualization/foundations/)** — What a VMM is and the Popek–Goldberg condition for trap-and-emulate.
-2. **[Taxonomy](/virtualization/taxonomy/)** — Four axes of VMM design: placement, guest interface, hardware support, isolation boundary.
-3. **[Hypervisor Architecture](/virtualization/vmm-architecture/)** — The recurring component set and three shapes: monolithic, hosted, disaggregated.
+0. **[History](/virtualization/history/)** — Sixty years of virtualization in five eras.
+1. **[Foundations](/virtualization/foundations/)** — What a VMM is and the Popek–Goldberg condition.
+2. **[Taxonomy](/virtualization/taxonomy/)** — The four axes of VMM design.
+3. **[Hypervisor Architecture](/virtualization/vmm-architecture/)** — The component set and three shapes.
 4. Core Virtualization Mechanisms
-    - **[CPU](/virtualization/cpu/)** — Trap-and-emulate, binary translation, paravirtualization, hardware-assisted virtualization, and vCPU scheduling.
-    - **[Memory](/virtualization/memory/)** — Shadow page tables, nested paging (EPT/NPT), and the overcommit toolbox.
-    - **[I/O](/virtualization/io/)** — Full emulation vs paravirtual (virtio) vs direct assignment (SR-IOV).
-5. **[Cross-Domain Communication](/virtualization/communication/)** — Hypercalls, rings, grant tables, capabilities — the substrate every non-monolithic VMM is built on.
-6. **[VM Management and Cloud Extensions](/virtualization/vm-management/)** — Lifecycle, snapshotting, live migration, microVMs, fleet orchestration.
-7. **[Performance and Overhead](/virtualization/performance/)** — Where the costs come from on modern hardware, and what residual tax remains.
+    - **[CPU](/virtualization/cpu/)** — How guest code runs, and vCPU scheduling.
+    - **[Memory](/virtualization/memory/)** — Shadow page tables, nested paging, and overcommit.
+    - **[I/O](/virtualization/io/)** — Emulation vs paravirtual vs direct assignment.
+5. **[Cross-Domain Communication](/virtualization/communication/)** — Hypercalls, rings, grant tables, capabilities.
+6. **[VM Management and Cloud Extensions](/virtualization/vm-management/)** — Lifecycle, migration, microVMs, orchestration.
+7. **[Performance and Overhead](/virtualization/performance/)** — Where the costs come from, and what remains.
 
 ## Systems and Case Studies
 
@@ -37,27 +37,27 @@ Per-system notes grounded in source-code reading, structured along the chapter o
 
 **Type-1 hypervisors:**
 
-- **[Xen](/virtualization/systems/xen/)** — the canonical disaggregated paravirt Type-1; PV / HVM / PVH modes contrasted in depth.
-- *hvisor*
-- *axvisor*
-- *VMware ESX*
+- **[Xen](/virtualization/systems/xen/)** — the canonical disaggregated paravirt Type-1.
+- **[hvisor](/virtualization/systems/hvisor/)** — Rust separation-kernel hypervisor with static partitioning.
+- **[AxVisor](/virtualization/systems/axvisor/)** — Rust hypervisor built as an ArceOS unikernel application.
+- **[VMware ESXi](/virtualization/systems/vmware/)** — the canonical commercial monolithic Type-1.
 
 **Type-2 / hosted:**
 
-- *KVM*
-- *QEMU*
-- *VirtualBox*
+- **[KVM](/virtualization/systems/kvm/)** — the canonical hosted hypervisor; a Linux kernel module.
+- **[QEMU](/virtualization/systems/qemu/)** — the universal machine emulator and userspace VMM.
+- **[VirtualBox](/virtualization/systems/virtualbox/)** — Oracle's cross-platform desktop Type-2.
 
 **MicroVMs and container-VM hybrids:**
 
-- *Firecracker*
-- *Kata Containers*
+- **[Firecracker](/virtualization/systems/firecracker/)** — AWS's minimal Rust microVM behind Lambda and Fargate.
+- **[Kata Containers](/virtualization/systems/kata/)** — containers wrapped in microVMs for hardware isolation.
 
 **Language-isolated systems:**
 
-- *RedLeaf*
+- *RedLeaf* — planned (Rust OS with language-checked domains).
 
-**Container runtimes:**
+**Container runtimes** (not hypervisors, but adjacent on the isolation-boundary axis):
 
-- *Docker*
-- *gVisor*
+- **[Docker](/virtualization/systems/docker/)** — the canonical OS-level virtualization stack.
+- **[gVisor](/virtualization/systems/gvisor/)** — Google's userspace-kernel sandbox.

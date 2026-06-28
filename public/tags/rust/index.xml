@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Rust on Anekoique&#39;s Blog</title>
+    <link>https://anekoique.github.io/tags/rust/</link>
+    <description>Recent content in Rust on Anekoique&#39;s Blog</description>
+    <generator>Hugo -- 0.162.0</generator>
+    <language>en</language>
+    <lastBuildDate>Sat, 27 Jun 2026 20:00:00 +0800</lastBuildDate>
+    <atom:link href="https://anekoique.github.io/tags/rust/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Virtualization Systems — hvisor</title>
+      <link>https://anekoique.github.io/virtualization/systems/hvisor/</link>
+      <pubDate>Sat, 27 Jun 2026 20:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/hvisor/</guid>
+      <description>Rust separation-kernel Type-1 hypervisor from Syswonder, descended from Jailhouse and RVM1.5. Static partitioning of hardware into isolated zones, no CPU scheduler, no overcommit, virtio trampoline for paravirtual I/O.</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — AxVisor</title>
+      <link>https://anekoique.github.io/virtualization/systems/axvisor/</link>
+      <pubDate>Sat, 27 Jun 2026 19:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/axvisor/</guid>
+      <description>Rust Type-1 hypervisor built as an application of the ArceOS unikernel: vCPUs are scheduled as ArceOS tasks, and the hypervisor is a thin shell over a stack of arceos-hypervisor crates (axvm, axvcpu, axaddrspace, axdevice, axhvc).</description>
+    </item>
+    <item>
+      <title>Virtualization Systems — Firecracker</title>
+      <link>https://anekoique.github.io/virtualization/systems/firecracker/</link>
+      <pubDate>Sat, 27 Jun 2026 14:00:00 +0800</pubDate>
+      <guid>https://anekoique.github.io/virtualization/systems/firecracker/</guid>
+      <description>AWS&amp;rsquo;s Rust microVM (~50 KLoC) on KVM, the production substrate for AWS Lambda and Fargate. The reference for what a VMM looks like when its requirements are aggressively bounded; jailer + Rust + minimal device set as defense in depth.</description>
+    </item>
+  </channel>
+</rss>

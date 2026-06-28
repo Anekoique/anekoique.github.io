@@ -1,36 +1,118 @@
+
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://anekoique.github.io/</loc>
-    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/hvisor/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
   </url><url>
     <loc>https://anekoique.github.io/tags/hypervisor/</loc>
-    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/rust/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/series/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/systems/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/virtualization/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/series/virtualization-series/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/hvisor/</loc>
+    <lastmod>2026-06-27T20:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/arceos/</loc>
+    <lastmod>2026-06-27T19:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/axvisor/</loc>
+    <lastmod>2026-06-27T19:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/vmware/</loc>
+    <lastmod>2026-06-27T18:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/vmware/</loc>
+    <lastmod>2026-06-27T18:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/kvm/</loc>
+    <lastmod>2026-06-27T17:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/linux/</loc>
+    <lastmod>2026-06-27T17:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/kvm/</loc>
+    <lastmod>2026-06-27T17:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/emulation/</loc>
+    <lastmod>2026-06-27T16:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/qemu/</loc>
+    <lastmod>2026-06-27T16:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/qemu/</loc>
+    <lastmod>2026-06-27T16:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/virtualbox/</loc>
+    <lastmod>2026-06-27T15:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/virtualbox/</loc>
+    <lastmod>2026-06-27T15:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/firecracker/</loc>
+    <lastmod>2026-06-27T14:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/microvm/</loc>
+    <lastmod>2026-06-27T14:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/firecracker/</loc>
+    <lastmod>2026-06-27T14:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/containers/</loc>
+    <lastmod>2026-06-27T13:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/kata/</loc>
+    <lastmod>2026-06-27T13:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/kata/</loc>
+    <lastmod>2026-06-27T13:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/docker/</loc>
+    <lastmod>2026-06-27T12:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/docker/</loc>
+    <lastmod>2026-06-27T12:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/go/</loc>
+    <lastmod>2026-06-27T11:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/gvisor/</loc>
+    <lastmod>2026-06-27T11:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/tags/sandbox/</loc>
+    <lastmod>2026-06-27T11:00:00+08:00</lastmod>
+  </url><url>
+    <loc>https://anekoique.github.io/virtualization/systems/gvisor/</loc>
+    <lastmod>2026-06-27T11:00:00+08:00</lastmod>
   </url><url>
     <loc>https://anekoique.github.io/posts/</loc>
     <lastmod>2026-05-17T21:00:00+08:00</lastmod>
   </url><url>
-    <loc>https://anekoique.github.io/series/</loc>
-    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
-  </url><url>
-    <loc>https://anekoique.github.io/tags/systems/</loc>
-    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
-  </url><url>
-    <loc>https://anekoique.github.io/tags/</loc>
-    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
-  </url><url>
-    <loc>https://anekoique.github.io/tags/virtualization/</loc>
-    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
-  </url><url>
     <loc>https://anekoique.github.io/posts/virtualization-survey/</loc>
     <lastmod>2026-05-17T21:00:00+08:00</lastmod>
-  </url><url>
-    <loc>https://anekoique.github.io/series/virtualization-series/</loc>
-    <lastmod>2026-05-17T21:00:00+08:00</lastmod>
-  </url><url>
-    <loc>https://anekoique.github.io/virtualization/</loc>
-    <lastmod>2026-05-17T20:00:00+08:00</lastmod>
   </url><url>
     <loc>https://anekoique.github.io/virtualization/systems/xen/</loc>
     <lastmod>2026-05-17T20:00:00+08:00</lastmod>
@@ -87,9 +169,6 @@
     <lastmod>2026-05-17T10:00:00+08:00</lastmod>
   </url><url>
     <loc>https://anekoique.github.io/tags/fs/</loc>
-    <lastmod>2026-04-16T10:25:00+08:00</lastmod>
-  </url><url>
-    <loc>https://anekoique.github.io/tags/linux/</loc>
     <lastmod>2026-04-16T10:25:00+08:00</lastmod>
   </url><url>
     <loc>https://anekoique.github.io/tags/os/</loc>
